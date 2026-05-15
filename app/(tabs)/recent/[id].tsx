@@ -16,6 +16,7 @@ import {
   useStopChargingMutation,
 } from "@/charging/charging.api";
 import { useChargingSocket } from "@/charging/charging.socket";
+import { V } from "@/theme/vajra";
 import { IconSymbol } from "components/ui/icon-symbol";
 
 const formatDateTime = (value: string | null) => {
@@ -174,10 +175,9 @@ export default function SessionDetails() {
         <Text style={styles.header}>Session not found</Text>
         <Pressable
           onPress={() => router.replace("/recent")}
-          style={styles.backButton}
+          style={styles.backBtn}
         >
-          <IconSymbol name="chevron.right" size={18} color="#0F172A" />
-          <Text style={styles.backText}>Back</Text>
+          <IconSymbol name="arrow.left" size={18} color={V.headingDeep} />
         </Pressable>
       </View>
     );
@@ -199,10 +199,9 @@ export default function SessionDetails() {
         </Text>
         <Pressable
           onPress={() => router.replace("/recent")}
-          style={styles.backButton}
+          style={styles.backBtn}
         >
-          <IconSymbol name="chevron.right" size={18} color="#0F172A" />
-          <Text style={styles.backText}>Back</Text>
+          <IconSymbol name="arrow.left" size={18} color={V.headingDeep} />
         </Pressable>
       </View>
     );
@@ -219,23 +218,18 @@ export default function SessionDetails() {
       <View style={styles.topBar}>
         <Pressable
           onPress={() => router.replace("/recent")}
-          style={styles.backButton}
+          style={styles.backBtn}
         >
-          <IconSymbol
-            name="chevron.right"
-            size={18}
-            color="#0F172A"
-            style={styles.backIcon}
-          />
-          <Text style={styles.backText}>Back</Text>
+          <IconSymbol name="arrow.left" size={18} color={V.headingDeep} />
         </Pressable>
         <Text style={styles.topTitle}>Session details</Text>
+        <View style={styles.topBarSpacer} />
       </View>
 
       <View style={styles.summaryCard}>
         <View style={styles.summaryHeader}>
           <View style={styles.iconWrap}>
-            <IconSymbol name="charger.fill" size={26} color="#FFFFFF" />
+            <IconSymbol name="bolt.fill" size={26} color={V.primary} />
           </View>
           <View style={styles.summaryText}>
             <Text style={styles.summaryTitle}>
@@ -339,54 +333,51 @@ export default function SessionDetails() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F3F6FB",
+    backgroundColor: V.pageBg,
   },
   content: {
-    paddingHorizontal: 16,
+    paddingHorizontal: V.appPadH,
     paddingTop: 40,
     paddingBottom: 140,
   },
   header: {
     fontSize: 20,
     fontWeight: "700",
-    color: "#0F172A",
+    color: V.headingDeep,
     paddingTop: 40,
   },
   topBar: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
     marginBottom: 16,
   },
+  topBarSpacer: {
+    flex: 1,
+  },
   topTitle: {
+    flex: 1,
     fontSize: 18,
     fontWeight: "700",
-    color: "#0F172A",
+    color: V.headingDeep,
+    textAlign: "center",
   },
-  backButton: {
-    flexDirection: "row",
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: V.borderNavy,
+    backgroundColor: V.card,
     alignItems: "center",
-  },
-  backIcon: {
-    transform: [{ rotate: "180deg" }],
-  },
-  backText: {
-    marginLeft: 6,
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#0F172A",
+    justifyContent: "center",
   },
   summaryCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 20,
+    backgroundColor: V.card,
+    borderRadius: V.radiusCard,
     padding: 16,
     borderWidth: 1,
-    borderColor: "rgba(40, 92, 153, 0.12)",
-    shadowColor: "#0B2A5E",
-    shadowOpacity: 0.08,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 3,
+    borderColor: V.borderNavy,
+    ...V.shadowCardEmphasis,
   },
   summaryHeader: {
     flexDirection: "row",
@@ -396,9 +387,11 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: "#2EC6C9",
+    backgroundColor: V.tealMuted,
     alignItems: "center",
     justifyContent: "center",
+    borderWidth: 2,
+    borderColor: V.primary,
   },
   summaryText: {
     marginLeft: 12,
@@ -406,13 +399,13 @@ const styles = StyleSheet.create({
   summaryTitle: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#13233D",
+    color: V.headingMuted,
   },
   summaryMeta: {
     marginTop: 4,
     fontSize: 12,
     fontWeight: "600",
-    color: "#6C7CA6",
+    color: V.bodySecondary,
   },
   summaryRow: {
     marginTop: 14,
@@ -423,18 +416,18 @@ const styles = StyleSheet.create({
   summaryLabel: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#6C7CA6",
+    color: V.bodySecondary,
   },
   summaryValue: {
     fontSize: 12,
     fontWeight: "700",
-    color: "#1A2850",
+    color: V.heading,
   },
   statusPill: {
-    backgroundColor: "rgba(33, 179, 167, 0.12)",
+    backgroundColor: V.tealMuted,
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 999,
+    borderRadius: V.radiusPill,
   },
   statusRow: {
     flexDirection: "row",
@@ -444,13 +437,13 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: "#0F6A6A",
+    backgroundColor: V.tealBadgeText,
     marginRight: 6,
   },
   statusText: {
     fontSize: 11,
     fontWeight: "700",
-    color: "#0F6A6A",
+    color: V.tealBadgeText,
   },
   grid: {
     marginTop: 16,
@@ -460,60 +453,64 @@ const styles = StyleSheet.create({
   },
   gridCard: {
     width: "48%",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
+    backgroundColor: V.card,
+    borderRadius: V.radiusPanel,
     padding: 14,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: "rgba(40, 92, 153, 0.12)",
+    borderColor: V.borderNavy,
+    ...V.shadowCard,
   },
   gridLabel: {
     fontSize: 11,
     fontWeight: "700",
-    color: "#8B97B2",
+    color: V.label,
     textTransform: "uppercase",
+    letterSpacing: 1,
   },
   gridValue: {
     marginTop: 8,
     fontSize: 14,
     fontWeight: "700",
-    color: "#1A2850",
+    color: V.heading,
   },
   detailCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
+    backgroundColor: V.card,
+    borderRadius: V.radiusPanel,
     padding: 16,
     marginTop: 12,
     borderWidth: 1,
-    borderColor: "rgba(40, 92, 153, 0.12)",
+    borderColor: V.borderNavy,
+    ...V.shadowCard,
   },
   detailTitle: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "700",
-    color: "#8B97B2",
+    color: V.label,
     textTransform: "uppercase",
+    letterSpacing: 1,
   },
   detailValue: {
     marginTop: 8,
     fontSize: 14,
     fontWeight: "700",
-    color: "#1A2850",
+    color: V.heading,
   },
   actionWrap: {
     marginTop: 20,
     marginBottom: 24,
   },
   primaryBtn: {
-    backgroundColor: "#1A2850",
+    backgroundColor: V.error,
     paddingVertical: 14,
-    borderRadius: 12,
+    borderRadius: V.radiusPill,
     alignItems: "center",
   },
   primaryBtnDisabled: {
     opacity: 0.7,
   },
   primaryText: {
-    color: "#FFFFFF",
+    color: V.card,
     fontSize: 14,
     fontWeight: "700",
   },
@@ -521,6 +518,6 @@ const styles = StyleSheet.create({
     marginTop: 10,
     fontSize: 12,
     fontWeight: "600",
-    color: "#C81D2C",
+    color: V.error,
   },
 });

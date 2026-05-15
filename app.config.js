@@ -1,10 +1,17 @@
 require("dotenv").config();
 const { expo } = require("./app.json");
 
-const googleMapsApiKey = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
+const googleMapsApiKey =
+  process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ?? "";
 
-if (!googleMapsApiKey) {
-  throw new Error("Missing GOOGLE MAPS API KEY");
+if (
+  !googleMapsApiKey &&
+  !globalThis.__hopewellGoogleMapsKeyWarned
+) {
+  globalThis.__hopewellGoogleMapsKeyWarned = true;
+  console.warn(
+    "[app.config] EXPO_PUBLIC_GOOGLE_MAPS_API_KEY is not set. Add it to .env for maps; the app will still start for local dev."
+  );
 }
 
 module.exports = {

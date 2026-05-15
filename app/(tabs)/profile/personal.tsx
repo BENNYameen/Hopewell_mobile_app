@@ -12,6 +12,7 @@ import {
 } from "react-native";
 
 import { useGetMeQuery, useUpdateProfileMutation } from "@/profile/profile.api";
+import { V } from "@/theme/vajra";
 import { IconSymbol } from "components/ui/icon-symbol";
 
 export default function PersonalInfo() {
@@ -49,9 +50,8 @@ export default function PersonalInfo() {
   return (
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
-        <Pressable style={styles.backRow} onPress={() => router.back()}>
+        <Pressable style={styles.backBtn} onPress={() => router.back()}>
           <IconSymbol name="arrow.left" size={18} color="#0F172A" />
-          <Text style={styles.backText}>Back</Text>
         </Pressable>
 
         <Text style={styles.title}>My Profile</Text>
@@ -192,27 +192,27 @@ export default function PersonalInfo() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F3F6FB",
+    backgroundColor: V.pageBg,
   },
-  backRow: {
-    flexDirection: "row",
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: V.borderNavy,
+    backgroundColor: V.card,
     alignItems: "center",
+    justifyContent: "center",
     marginBottom: 16,
-  },
-  backText: {
-    marginLeft: 6,
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#1A2850",
   },
   title: {
     fontSize: 24,
     fontWeight: "700",
-    color: "#0F172A",
+    color: V.headingDeep,
     marginBottom: 18,
   },
   content: {
-    paddingHorizontal: 16,
+    paddingHorizontal: V.appPadH,
     paddingTop: 40,
     paddingBottom: 200,
   },
@@ -220,47 +220,49 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   label: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "700",
-    color: "#1A2850",
+    color: V.heading,
     marginBottom: 8,
   },
   required: {
-    color: "#E0586A",
+    color: V.unavailable,
   },
   input: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 14,
+    backgroundColor: V.pageBg,
+    borderRadius: V.radiusInput,
     paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingVertical: 13,
     borderWidth: 1,
-    borderColor: "rgba(40, 92, 153, 0.15)",
+    borderColor: V.borderNavyMedium,
     fontSize: 14,
-    color: "#0F172A",
+    fontWeight: "600",
+    color: V.headingDeep,
   },
   inputRow: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 14,
+    backgroundColor: V.pageBg,
+    borderRadius: V.radiusInput,
     borderWidth: 1,
-    borderColor: "rgba(40, 92, 153, 0.15)",
+    borderColor: V.borderNavyMedium,
     paddingHorizontal: 10,
     paddingVertical: 8,
   },
   inputInline: {
     flex: 1,
     fontSize: 14,
-    color: "#0F172A",
+    fontWeight: "600",
+    color: V.headingDeep,
     paddingVertical: 4,
   },
   inputDisabled: {
-    color: "#8B97B2",
+    color: V.label,
   },
   countryCode: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#EEF2FA",
+    backgroundColor: V.tealMuted,
     borderRadius: 10,
     paddingHorizontal: 8,
     paddingVertical: 6,
@@ -272,10 +274,10 @@ const styles = StyleSheet.create({
   codeText: {
     fontSize: 13,
     fontWeight: "700",
-    color: "#1A2850",
+    color: V.heading,
   },
   unverified: {
-    backgroundColor: "#FFECEE",
+    backgroundColor: V.errorSurface,
     borderRadius: 10,
     paddingHorizontal: 8,
     paddingVertical: 4,
@@ -284,7 +286,7 @@ const styles = StyleSheet.create({
   unverifiedText: {
     fontSize: 11,
     fontWeight: "700",
-    color: "#D11D2E",
+    color: V.error,
   },
   textArea: {
     minHeight: 110,
@@ -295,13 +297,13 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 90,
-    paddingHorizontal: 16,
+    paddingHorizontal: V.appPadH,
     paddingVertical: 16,
-    backgroundColor: "#F3F6FB",
+    backgroundColor: V.pageBg,
   },
   saveButton: {
-    backgroundColor: "#E11D2E",
-    borderRadius: 999,
+    backgroundColor: V.primary,
+    borderRadius: V.radiusPill,
     paddingVertical: 14,
     alignItems: "center",
   },
@@ -309,39 +311,39 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   saveText: {
-    color: "#FFFFFF",
+    color: V.card,
     fontSize: 14,
     fontWeight: "700",
   },
   errorBox: {
-    backgroundColor: "#FFECEE",
+    backgroundColor: V.errorSurface,
     borderRadius: 14,
     padding: 14,
     borderWidth: 1,
-    borderColor: "#F5B6BE",
+    borderColor: V.errorBorder,
     marginBottom: 16,
   },
   errorTitle: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#C81D2C",
+    color: V.error,
   },
   errorMessage: {
     marginTop: 6,
     fontSize: 12,
     fontWeight: "600",
-    color: "#A82734",
+    color: V.error,
   },
   retryButton: {
     alignSelf: "flex-start",
     marginTop: 10,
     paddingHorizontal: 12,
     paddingVertical: 6,
-    backgroundColor: "#E11D2E",
-    borderRadius: 999,
+    backgroundColor: V.error,
+    borderRadius: V.radiusPill,
   },
   retryText: {
-    color: "#FFFFFF",
+    color: V.card,
     fontSize: 12,
     fontWeight: "700",
   },
@@ -351,7 +353,7 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   modalCard: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: V.card,
     borderTopLeftRadius: 22,
     borderTopRightRadius: 22,
     padding: 20,
@@ -360,7 +362,7 @@ const styles = StyleSheet.create({
     width: 46,
     height: 46,
     borderRadius: 23,
-    backgroundColor: "#FFECEE",
+    backgroundColor: V.tealMuted,
     alignItems: "center",
     justifyContent: "center",
     alignSelf: "center",
@@ -369,14 +371,14 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#1A2850",
+    color: V.heading,
     textAlign: "center",
   },
   modalBody: {
     marginTop: 8,
     fontSize: 13,
     fontWeight: "600",
-    color: "#6C7CA6",
+    color: V.bodySecondary,
     textAlign: "center",
   },
   modalActions: {
@@ -386,26 +388,26 @@ const styles = StyleSheet.create({
   modalSecondary: {
     flex: 1,
     borderWidth: 1,
-    borderColor: "#E11D2E",
+    borderColor: V.borderNavy,
     paddingVertical: 12,
-    borderRadius: 999,
+    borderRadius: V.radiusPill,
     alignItems: "center",
     marginRight: 10,
   },
   modalSecondaryText: {
-    color: "#E11D2E",
+    color: V.heading,
     fontSize: 12,
     fontWeight: "700",
   },
   modalPrimary: {
     flex: 1,
-    backgroundColor: "#E11D2E",
+    backgroundColor: V.primary,
     paddingVertical: 12,
-    borderRadius: 999,
+    borderRadius: V.radiusPill,
     alignItems: "center",
   },
   modalPrimaryText: {
-    color: "#FFFFFF",
+    color: V.card,
     fontSize: 12,
     fontWeight: "700",
   },

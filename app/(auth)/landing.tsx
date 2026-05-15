@@ -1,0 +1,608 @@
+/**
+ * Marketing landing — parity with Vajra web `src/pages/LandingPage.tsx`
+ * (canonical until PNGs exist in design-screenshots).
+ */
+import { useRouter } from "expo-router";
+import { BlurView } from "expo-blur";
+import {
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+
+import { MarketingHeroBolt } from "components/vajra/LightningBrandMark";
+import { V } from "@/theme/vajra";
+import { IconSymbol } from "components/ui/icon-symbol";
+
+function StepCard({
+  num,
+  title,
+  description,
+  iconName,
+}: {
+  num: number;
+  title: string;
+  description: string;
+  iconName: Parameters<typeof IconSymbol>[0]["name"];
+}) {
+  return (
+    <View style={styles.stepCard}>
+      <View style={styles.stepCardTop}>
+        <View style={styles.stepIconTile}>
+          <IconSymbol name={iconName} size={22} color={V.primary} />
+        </View>
+        <Text style={styles.stepWatermark}>{String(num).padStart(2, "0")}</Text>
+      </View>
+      <Text style={styles.stepCardTitle}>{title}</Text>
+      <Text style={styles.stepCardBody}>{description}</Text>
+    </View>
+  );
+}
+
+function StatItem({ value, label }: { value: string; label: string }) {
+  return (
+    <View style={styles.statItem}>
+      <Text style={styles.statValue}>{value}</Text>
+      <Text style={styles.statLabel}>{label}</Text>
+    </View>
+  );
+}
+
+const STATS = [
+  { value: "50+", label: "Charge Points" },
+  { value: "20+", label: "Locations" },
+  { value: "24/7", label: "Availability" },
+];
+
+export default function LandingScreen() {
+  const router = useRouter();
+  const { width } = useWindowDimensions();
+  const contentW = Math.min(width, V.marketingMax);
+
+  const HeaderInner = (
+    <View style={[styles.headerInner, { maxWidth: V.marketingMax }]}>
+      <Pressable
+        style={styles.logoPress}
+        onPress={() => router.replace("/(auth)/landing")}
+      >
+        <View style={styles.logoCircle32}>
+          <IconSymbol name="bolt.fill" size={15} color={V.card} />
+        </View>
+        <View>
+          <Text style={styles.wordmark}>Vajra Volt</Text>
+          <Text style={styles.chargingMicro}>CHARGING</Text>
+        </View>
+      </Pressable>
+
+      <View style={styles.headerRight}>
+        <Pressable onPress={() => router.push("/(auth)/charging-guide")}>
+          <Text style={styles.navLink}>How to Charge</Text>
+        </Pressable>
+        <Pressable onPress={() => router.push("/(auth)/login")}>
+          <Text style={styles.navLink}>Log in</Text>
+        </Pressable>
+        <Pressable
+          style={styles.getStartedPill}
+          onPress={() => router.push("/(auth)/login")}
+        >
+          <Text style={styles.getStartedText}>Get Started</Text>
+          <Text style={styles.chev}>›</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+
+  return (
+    <SafeAreaView style={styles.safe} edges={["top"]}>
+      <ScrollView
+        stickyHeaderIndices={[0]}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollRoot}
+      >
+        {Platform.OS === "web" ? (
+          <View style={[styles.stickyHeader, styles.stickyHeaderSolid]}>
+            {HeaderInner}
+          </View>
+        ) : (
+          <BlurView intensity={28} tint="light" style={styles.stickyHeader}>
+            {HeaderInner}
+          </BlurView>
+        )}
+
+        <View
+          style={[
+            styles.column,
+            { width: contentW, maxWidth: V.marketingMax },
+          ]}
+        >
+          {/* Hero — web order (no eyebrow above ring) */}
+          <View style={styles.hero}>
+            <View style={styles.heroMark}>
+              <MarketingHeroBolt />
+            </View>
+            <Text style={styles.heroH1}>
+              <Text style={styles.heroH1Navy}>
+                Smart EV Charging,{"\n"}
+              </Text>
+              <Text style={styles.heroH1Teal}>Anywhere.</Text>
+            </Text>
+            <Text style={styles.heroLead}>
+              Find, verify, and start charging your EV in seconds. Vajra Volt
+              makes EV charging as easy as scanning a QR code.
+            </Text>
+            <View style={styles.heroCtas}>
+              <Pressable
+                style={styles.primaryBtn}
+                onPress={() => router.push("/(auth)/login")}
+              >
+                <Text style={styles.primaryBtnText}>Start Charging</Text>
+                <Text style={styles.chevLight}>›</Text>
+              </Pressable>
+              <Pressable
+                style={styles.secondaryHeroBtn}
+                onPress={() => router.push("/(auth)/charging-guide")}
+              >
+                <Text style={styles.secondaryHeroBtnTextHow}>How It Works</Text>
+              </Pressable>
+            </View>
+          </View>
+
+          {/* Stats banner */}
+          <View style={styles.statsBanner}>
+            {STATS.map((s, i) => (
+              <View
+                key={s.label}
+                style={[styles.statColumn, i > 0 && styles.statColumnBorder]}
+              >
+                <StatItem value={s.value} label={s.label} />
+              </View>
+            ))}
+          </View>
+
+          {/* How it works */}
+          <View style={styles.howHeader}>
+            <Text style={styles.eyebrowPrimary}>Simple Process</Text>
+            <Text style={styles.howTitle}>How It Works</Text>
+          </View>
+
+          <StepCard
+            num={1}
+            title="Find a Charger"
+            description="Browse nearby charging stations on the map or scan a QR code at any Vajra charging point."
+            iconName="map.fill"
+          />
+          <StepCard
+            num={2}
+            title="Verify & Connect"
+            description="Enter the charger ID or scan the QR code to authenticate your session securely."
+            iconName="qrcode"
+          />
+          <StepCard
+            num={3}
+            title="Charge & Go"
+            description="Monitor live energy, cost, and duration. Stop anytime from the app or web dashboard."
+            iconName="bolt.fill"
+          />
+
+          <Pressable
+            style={styles.detailLink}
+            onPress={() => router.push("/(auth)/charging-guide")}
+          >
+            <Text style={styles.detailLinkText}>See detailed instructions</Text>
+            <Text style={styles.chevPrimary}>›</Text>
+          </Pressable>
+
+          {/* Features */}
+          <View style={styles.featureGrid}>
+            {[
+              {
+                icon: "bolt.fill" as const,
+                title: "Real-Time Updates",
+                desc: "Live energy, cost, and power data while charging.",
+              },
+              {
+                icon: "policy" as const,
+                title: "Secure Sessions",
+                desc: "JWT-authenticated sessions protect your account and wallet.",
+              },
+              {
+                icon: "qrcode" as const,
+                title: "Multi-Device Access",
+                desc: "Start on mobile, monitor on web — same session, always in sync.",
+              },
+            ].map((f) => (
+              <View key={f.title} style={styles.featureCard}>
+                <IconSymbol name={f.icon} size={18} color={V.primary} />
+                <View style={styles.featureText}>
+                  <Text style={styles.featureTitle}>{f.title}</Text>
+                  <Text style={styles.featureDesc}>{f.desc}</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+
+          {/* Dark CTA */}
+          <View style={styles.darkCta}>
+            <View style={styles.darkCtaIcon}>
+              <IconSymbol name="bolt.fill" size={22} color={V.card} />
+            </View>
+            <Text style={styles.darkCtaH2}>Ready to Charge?</Text>
+            <Text style={styles.darkCtaSub}>
+              Join hundreds of EV drivers using Vajra Volt every day.
+            </Text>
+            <Pressable
+              style={styles.darkCtaBtn}
+              onPress={() => router.push("/(auth)/login")}
+            >
+              <Text style={styles.darkCtaBtnText}>Create Account</Text>
+              <Text style={styles.chevLight}>›</Text>
+            </Pressable>
+          </View>
+
+          {/* Footer */}
+          <View style={styles.footer}>
+            <View style={styles.footerRow}>
+              <View style={styles.footerBrand}>
+                <View style={styles.footerLogo}>
+                  <IconSymbol name="bolt.fill" size={12} color={V.card} />
+                </View>
+                <Text style={styles.footerBrandText}>Vajra Volt Charging</Text>
+              </View>
+              <Text style={styles.footerCopy}>
+                © {new Date().getFullYear()} Vajra Volt. All rights reserved.
+              </Text>
+            </View>
+            <View style={styles.footerLinks}>
+              <Pressable onPress={() => router.push("/(auth)/charging-guide")}>
+                <Text style={styles.footerLink}>How to Charge</Text>
+              </Pressable>
+              <Pressable onPress={() => router.push("/(auth)/login")}>
+                <Text style={styles.footerLink}>Log In</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: V.pageBg },
+  scrollRoot: { paddingBottom: 40 },
+  stickyHeader: {
+    borderBottomWidth: 1,
+    borderBottomColor: V.borderNavy,
+    overflow: "hidden",
+  },
+  stickyHeaderSolid: {
+    backgroundColor: "rgba(255, 255, 255, 0.92)",
+  },
+  headerInner: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    width: "100%",
+    alignSelf: "center",
+  },
+  logoPress: { flexDirection: "row", alignItems: "center", gap: 10 },
+  logoCircle32: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: V.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  wordmark: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: V.headingDeep,
+  },
+  chargingMicro: {
+    marginTop: 2,
+    fontSize: 8,
+    fontWeight: "700",
+    color: V.label,
+    letterSpacing: 3,
+  },
+  headerRight: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: 10,
+  },
+  navLink: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: V.bodySecondary,
+  },
+  getStartedPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: V.primary,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: V.radiusPill,
+  },
+  getStartedText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: V.card,
+  },
+  chev: { fontSize: 16, fontWeight: "800", color: V.card, marginTop: -2 },
+  column: { alignSelf: "center", paddingHorizontal: 20 },
+  hero: { paddingTop: 36, paddingBottom: 24, alignItems: "center" },
+  heroMark: { marginBottom: 24 },
+  heroH1: {
+    textAlign: "center",
+    fontSize: 36,
+    lineHeight: 44,
+    fontWeight: "800",
+  },
+  heroH1Navy: { color: V.headingDeep, fontWeight: "800" },
+  heroH1Teal: { color: V.primary, fontWeight: "800" },
+  heroLead: {
+    marginTop: 16,
+    textAlign: "center",
+    fontSize: 16,
+    lineHeight: 24,
+    fontWeight: "600",
+    color: V.bodySecondary,
+    maxWidth: 420,
+    paddingHorizontal: 8,
+  },
+  heroCtas: { marginTop: 24, width: "100%", gap: 12, alignItems: "stretch" },
+  primaryBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: V.primary,
+    paddingVertical: 14,
+    paddingHorizontal: 22,
+    borderRadius: V.radiusPill,
+    ...V.shadowCard,
+  },
+  primaryBtnText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: V.card,
+  },
+  chevLight: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: V.card,
+    marginTop: -2,
+  },
+  secondaryHeroBtn: {
+    alignItems: "center",
+    paddingVertical: 14,
+    borderRadius: V.radiusPill,
+    borderWidth: 1,
+    borderColor: V.borderNavy,
+    backgroundColor: V.card,
+  },
+  secondaryHeroBtnTextHow: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: V.headingDeep,
+  },
+  statsBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-around",
+    borderRadius: V.radiusStats,
+    paddingVertical: 28,
+    marginBottom: 36,
+    backgroundColor: V.primary,
+    overflow: "hidden",
+  },
+  statColumn: {
+    flex: 1,
+    alignItems: "center",
+    paddingVertical: 4,
+  },
+  statColumnBorder: {
+    borderLeftWidth: 1,
+    borderLeftColor: "rgba(255,255,255,0.2)",
+  },
+  statItem: { alignItems: "center", paddingHorizontal: 8 },
+  statValue: {
+    fontSize: 30,
+    fontWeight: "800",
+    color: V.card,
+  },
+  statLabel: {
+    marginTop: 6,
+    fontSize: 11,
+    fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: 2,
+    color: "rgba(255,255,255,0.78)",
+    textAlign: "center",
+  },
+  howHeader: { alignItems: "center", marginBottom: 28 },
+  eyebrowPrimary: {
+    fontSize: 12,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 4,
+    color: V.primary,
+    marginBottom: 6,
+  },
+  howTitle: {
+    fontSize: 28,
+    fontWeight: "800",
+    color: V.headingDeep,
+  },
+  stepCard: {
+    marginBottom: 12,
+    borderRadius: V.radiusCard,
+    backgroundColor: V.card,
+    padding: 22,
+    borderWidth: 1,
+    borderColor: V.borderStepCard,
+    ...V.shadowCard,
+    overflow: "hidden",
+  },
+  stepCardTop: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    marginBottom: 14,
+    position: "relative",
+  },
+  stepIconTile: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: V.tealMuted,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  stepWatermark: {
+    fontSize: 40,
+    fontWeight: "800",
+    color: V.tealMuted,
+    lineHeight: 44,
+  },
+  stepCardTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: V.headingDeep,
+    marginBottom: 6,
+  },
+  stepCardBody: {
+    fontSize: 14,
+    lineHeight: 22,
+    fontWeight: "600",
+    color: V.bodySecondary,
+  },
+  detailLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    marginTop: 20,
+    marginBottom: 36,
+  },
+  detailLinkText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: V.primary,
+  },
+  chevPrimary: { fontSize: 16, fontWeight: "800", color: V.primary },
+  featureGrid: { gap: 14, marginBottom: 36 },
+  featureCard: {
+    flexDirection: "row",
+    gap: 14,
+    backgroundColor: V.card,
+    borderRadius: 18,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: V.borderHairline,
+    ...V.shadowFeature,
+  },
+  featureText: { flex: 1 },
+  featureTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: V.headingDeep,
+    marginBottom: 4,
+  },
+  featureDesc: {
+    fontSize: 12,
+    lineHeight: 18,
+    fontWeight: "600",
+    color: V.bodySecondary,
+  },
+  darkCta: {
+    alignItems: "center",
+    borderRadius: V.radiusStats,
+    backgroundColor: V.headingDeep,
+    paddingVertical: 44,
+    paddingHorizontal: 28,
+    marginBottom: 40,
+  },
+  darkCtaIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: V.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 14,
+  },
+  darkCtaH2: {
+    fontSize: 24,
+    fontWeight: "800",
+    color: V.card,
+    textAlign: "center",
+    marginBottom: 10,
+  },
+  darkCtaSub: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "rgba(255,255,255,0.6)",
+    textAlign: "center",
+    maxWidth: 300,
+    lineHeight: 20,
+  },
+  darkCtaBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 22,
+    backgroundColor: V.primary,
+    paddingVertical: 14,
+    paddingHorizontal: 26,
+    borderRadius: V.radiusPill,
+    ...V.shadowCardEmphasis,
+  },
+  darkCtaBtnText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: V.card,
+  },
+  footer: {
+    backgroundColor: V.card,
+    borderTopWidth: 1,
+    borderTopColor: V.borderNavy,
+    paddingVertical: 22,
+    paddingHorizontal: 20,
+    marginHorizontal: -20,
+  },
+  footerRow: { gap: 12, marginBottom: 14 },
+  footerBrand: { flexDirection: "row", alignItems: "center", gap: 8 },
+  footerLogo: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: V.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  footerBrandText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: V.headingDeep,
+  },
+  footerCopy: {
+    fontSize: 12,
+    color: V.label,
+    marginTop: 4,
+  },
+  footerLinks: { flexDirection: "row", gap: 20 },
+  footerLink: { fontSize: 12, fontWeight: "600", color: V.bodySecondary },
+});

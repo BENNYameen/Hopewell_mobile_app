@@ -19,6 +19,7 @@ import {
   ChargingStationMapItem,
   useGetChargersQuery,
 } from "@/charging/stations.api";
+import { V } from "@/theme/vajra";
 import { useGetWalletBalanceQuery } from "@/wallet/wallet.api";
 import { IconSymbol } from "components/ui/icon-symbol";
 import { WalletContent } from "./profile/wallet";
@@ -558,20 +559,22 @@ const styles = StyleSheet.create({
   },
   walletCard: {
     marginLeft: 12,
-    backgroundColor: "#111827",
+    backgroundColor: "#FFFFFF",
     borderRadius: 16,
     paddingVertical: 10,
     paddingHorizontal: 14,
-    shadowColor: "#0B2A5E",
-    shadowOpacity: 0.12,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 6 },
+    borderWidth: 1,
+    borderColor: V.borderNavy,
+    shadowColor: V.shadowNavy,
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 8 },
     elevation: 3,
   },
   walletText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "800",
+    color: V.primary,
   },
   searchInputWrap: {
     flexDirection: "row",
@@ -785,8 +788,8 @@ const styles = StyleSheet.create({
   },
   directionButton: {
     marginTop: 18,
-    backgroundColor: "#0F6A6A",
-    borderRadius: 14,
+    backgroundColor: V.primary,
+    borderRadius: 999,
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: 12,

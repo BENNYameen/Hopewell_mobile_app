@@ -1,11 +1,19 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
-import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 
 import {
   useStartChargingMutation,
   useVerifyChargerMutation,
 } from "@/charging/charging.api";
+import { V } from "@/theme/vajra";
 
 type ParsedPayload = {
   charger_id?: string;
@@ -123,72 +131,118 @@ export default function QRResultScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.panel}>
-        <Text style={styles.title}>Charger verification</Text>
-        <Pressable style={styles.scanAgainButton} onPress={handleScanAgain}>
-          <Text style={styles.scanAgainText}>Scan Again</Text>
-        </Pressable>
-
-        {payloadError ? (
-          <Text style={styles.errorText}>{payloadError}</Text>
-        ) : null}
-        {error ? (
-          <Text style={styles.errorText}>
-            {"data" in (error as { data?: { error?: string } })
-              ? ((error as { data?: { error?: string } }).data?.error ??
-                "Unable to verify charger.")
-              : "Unable to verify charger."}
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.panel}>
+          <Text style={styles.title}>Start charging</Text>
+          <Text style={styles.lead}>
+            Verify the charger and connector before you plug in and begin a
+            session.
           </Text>
-        ) : null}
 
-        {isLoading ? (
-          <Text style={styles.statusHint}>Verifying charger...</Text>
-        ) : null}
-
-        {verified && data ? (
-          <>
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>Charger info</Text>
-              <Text style={styles.cardText}>Charger: {data.charger_id}</Text>
-              <Text style={styles.cardText}>
-                Connector: {data.connector?.connector_id ?? "Unknown"}
-              </Text>
-              {data.location ? (
-                <Text style={styles.cardText}>Location: {data.location}</Text>
-              ) : null}
-              {data.charger_type ? (
-                <Text style={styles.cardText}>Type: {data.charger_type}</Text>
-              ) : null}
-              {data.power_kw ? (
-                <Text style={styles.cardText}>Power: {data.power_kw} kW</Text>
-              ) : null}
-            </View>
-            <View style={styles.statusCard}>
-              <Text style={styles.statusTitle}>Status</Text>
-              <Text style={styles.statusText}>
-                {data.available
-                  ? "Available"
-                  : data.connector?.status ?? "Unavailable"}
-              </Text>
-              <Text style={styles.statusHint}>
-                {canStartCharging ? "Available to start." : "Not available."}
-              </Text>
-            </View>
-          </>
-        ) : null}
-
-        {canStartCharging ? (
-          <Pressable
-            style={styles.primaryBtn}
-            onPress={handleStartCharging}
-            disabled={isStarting}
-          >
-            <Text style={styles.primaryText}>
-              {isStarting ? "Starting..." : "Start Charging"}
+          <View style={styles.callout}>
+            <Text style={styles.calloutTitle}>Stay with your vehicle</Text>
+            <Text style={styles.calloutBody}>
+              Keep the cable secured and confirm the connector ID matches what
+              you see on the charger display.
             </Text>
+          </View>
+
+          <Pressable style={styles.scanAgainButton} onPress={handleScanAgain}>
+            <Text style={styles.scanAgainText}>Scan again</Text>
           </Pressable>
-        ) : null}
-      </View>
+
+          {payloadError ? (
+            <Text style={styles.errorText}>{payloadError}</Text>
+          ) : null}
+          {error ? (
+            <Text style={styles.errorText}>
+              {"data" in (error as { data?: { error?: string } })
+                ? ((error as { data?: { error?: string } }).data?.error ??
+                  "Unable to verify charger.")
+                : "Unable to verify charger."}
+            </Text>
+          ) : null}
+
+          {isLoading ? (
+            <Text style={styles.statusHint}>Verifying charger…</Text>
+          ) : null}
+
+          {verified && data ? (
+            <>
+              <View style={styles.summary}>
+                <Text style={styles.summaryTitle}>Verified details</Text>
+                <Text style={styles.summaryLine}>
+                  Charger · {data.charger_id}
+                </Text>
+                <Text style={styles.summaryLine}>
+                  Connector · {data.connector?.connector_id ?? "Unknown"}
+                </Text>
+                {data.location ? (
+                  <Text style={styles.summaryLine}>
+                    Location · {data.location}
+                  </Text>
+                ) : null}
+                {data.charger_type ? (
+                  <Text style={styles.summaryLine}>
+                    Type · {data.charger_type}
+                  </Text>
+                ) : null}
+                {data.power_kw ? (
+                  <Text style={styles.summaryLine}>
+                    Power · {data.power_kw} kW
+                  </Text>
+                ) : null}
+              </View>
+              <View
+                style={[
+                  styles.statusStrip,
+                  data.available ? styles.statusAvailable : styles.statusBusy,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.statusStripTitle,
+                    data.available
+                      ? styles.statusStripTitleOk
+                      : styles.statusStripTitleBad,
+                  ]}
+                >
+                  {data.available ? "Available" : "Unavailable"}
+                </Text>
+                <Text
+                  style={[
+                    styles.statusStripBody,
+                    data.available
+                      ? styles.statusStripBodyOk
+                      : styles.statusStripBodyBad,
+                  ]}
+                >
+                  {canStartCharging
+                    ? "Ready to start your session."
+                    : data.connector?.status ??
+                      "This connector cannot start a session right now."}
+                </Text>
+              </View>
+            </>
+          ) : null}
+
+          {canStartCharging ? (
+            <Pressable
+              style={styles.primaryBtn}
+              onPress={handleStartCharging}
+              disabled={isStarting}
+            >
+              <Text style={styles.primaryText}>
+                {isStarting ? "Starting…" : "Start charging"}
+              </Text>
+            </Pressable>
+          ) : null}
+        </View>
+      </ScrollView>
 
       <Modal
         animationType="fade"
@@ -216,97 +270,156 @@ export default function QRResultScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F3F6FB",
+    backgroundColor: V.pageBg,
+  },
+  scroll: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 40,
   },
   panel: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: V.card,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     padding: 20,
+    marginTop: 12,
+    minHeight: 520,
   },
   title: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#0F172A",
-    marginBottom: 12,
-    paddingTop: 24,
+    fontSize: 22,
+    fontWeight: "800",
+    color: V.headingDeep,
+    marginBottom: 8,
+    paddingTop: 28,
+  },
+  lead: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: V.bodySecondary,
+    lineHeight: 20,
+    marginBottom: 16,
+  },
+  callout: {
+    backgroundColor: V.panelTint,
+    borderRadius: V.radiusPanel,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: V.borderNavy,
+    marginBottom: 14,
+  },
+  calloutTitle: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: V.headingMuted,
+    marginBottom: 6,
+  },
+  calloutBody: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: V.bodySecondary,
+    lineHeight: 18,
   },
   scanAgainButton: {
     alignSelf: "flex-start",
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 999,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: V.radiusPill,
     borderWidth: 1,
-    borderColor: "rgba(37, 99, 235, 0.4)",
+    borderColor: V.headingDeep,
+    backgroundColor: V.card,
     marginBottom: 14,
   },
   scanAgainText: {
-    color: "#2563EB",
+    color: V.headingDeep,
     fontWeight: "700",
-    fontSize: 12,
+    fontSize: 13,
   },
   errorText: {
     fontSize: 12,
-    color: "#C81D2C",
+    color: V.error,
     fontWeight: "600",
     marginBottom: 8,
   },
-  card: {
-    marginTop: 12,
-    backgroundColor: "#F7FAFF",
-    borderRadius: 14,
-    padding: 12,
+  summary: {
+    marginTop: 8,
+    backgroundColor: V.card,
+    borderRadius: V.radiusPanel,
+    padding: 16,
     borderWidth: 1,
-    borderColor: "rgba(40, 92, 153, 0.12)",
+    borderColor: V.borderNavy,
+    ...V.shadowSoft,
   },
-  cardTitle: {
+  summaryTitle: {
+    fontSize: 12,
+    fontWeight: "800",
+    letterSpacing: 0.8,
+    color: V.label,
+    textTransform: "uppercase",
+    marginBottom: 10,
+  },
+  summaryLine: {
     fontSize: 13,
-    fontWeight: "700",
-    color: "#1A2850",
+    fontWeight: "600",
+    color: V.bodySecondary,
     marginBottom: 6,
   },
-  cardText: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#6C7CA6",
-    marginBottom: 4,
-  },
-  statusCard: {
+  statusStrip: {
     marginTop: 14,
-    backgroundColor: "#E7FBF9",
-    borderRadius: 14,
-    padding: 12,
+    borderRadius: V.radiusPanel,
+    padding: 14,
     borderWidth: 1,
-    borderColor: "rgba(33, 179, 167, 0.4)",
   },
-  statusTitle: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#0F6A6A",
+  statusAvailable: {
+    backgroundColor: V.successFill,
+    borderColor: "rgba(15, 106, 106, 0.35)",
   },
-  statusText: {
-    marginTop: 6,
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#0F172A",
+  statusBusy: {
+    backgroundColor: V.errorSurface,
+    borderColor: V.errorBorder,
+  },
+  statusStripTitle: {
+    fontSize: 13,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+  },
+  statusStripTitleOk: {
+    color: V.tealBadgeText,
+  },
+  statusStripTitleBad: {
+    color: V.error,
+  },
+  statusStripBody: {
+    marginTop: 8,
+    fontSize: 13,
+    fontWeight: "600",
+    lineHeight: 18,
+  },
+  statusStripBodyOk: {
+    color: V.heading,
+  },
+  statusStripBodyBad: {
+    color: V.error,
   },
   statusHint: {
     marginTop: 4,
     fontSize: 12,
     fontWeight: "600",
-    color: "#0F6A6A",
+    color: V.tealBadgeText,
   },
   primaryBtn: {
-    backgroundColor: "#21B3A7",
-    padding: 14,
-    borderRadius: 12,
+    backgroundColor: V.primary,
+    paddingVertical: 14,
+    borderRadius: V.radiusPill,
     alignItems: "center",
-    marginTop: 12,
+    marginTop: 18,
   },
   primaryText: {
-    color: "#fff",
-    fontWeight: "700",
+    color: V.card,
+    fontWeight: "800",
+    fontSize: 15,
   },
   modalBackdrop: {
     flex: 1,

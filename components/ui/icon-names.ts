@@ -38,6 +38,7 @@ export const ICONS = {
   "description": true,
   "policy": true,
   "help": true,
+  "info.circle.fill": true,
 } as const;
 
 export type IconName = keyof typeof ICONS;

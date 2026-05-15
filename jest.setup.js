@@ -1,5 +1,11 @@
 global.__DEV__ = false;
 
+jest.mock("@/auth/secureStorage", () => ({
+  setItemAsync: jest.fn(),
+  getItemAsync: jest.fn().mockResolvedValue(null),
+  deleteItemAsync: jest.fn(),
+}));
+
 jest.mock("expo-web-browser", () => ({
   openBrowserAsync: jest.fn(),
   WebBrowserPresentationStyle: {

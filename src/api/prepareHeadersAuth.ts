@@ -1,9 +1,9 @@
-import * as SecureStore from "expo-secure-store";
 import { ACCESS_TOKEN_KEY } from "@/auth/session";
+import { getItemAsync } from "@/auth/secureStorage";
 
 export async function prepareHeadersWithAuth(headers: Headers) {
   try {
-    const accessToken = await SecureStore.getItemAsync(ACCESS_TOKEN_KEY);
+    const accessToken = await getItemAsync(ACCESS_TOKEN_KEY);
 
     if (accessToken && accessToken.trim().length > 0) {
       headers.set("Authorization", `Bearer ${accessToken}`);

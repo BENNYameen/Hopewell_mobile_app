@@ -1,5 +1,6 @@
-import * as SecureStore from "expo-secure-store";
 import { useEffect, useRef, useState } from "react";
+import { ACCESS_TOKEN_KEY } from "@/auth/session";
+import { getItemAsync } from "@/auth/secureStorage";
 import { WS_BASE_URL } from "@/config/runtime";
 
 type ChargingUpdate = {
@@ -16,8 +17,6 @@ type ChargingSocketState = {
   connected: boolean;
   error: string | null;
 };
-
-const ACCESS_TOKEN_KEY = "auth_access_token";
 
 export function useChargingSocket(
   sessionId: string | null,
@@ -50,7 +49,7 @@ export function useChargingSocket(
     };
 
     const connect = async () => {
-      const token = await SecureStore.getItemAsync(ACCESS_TOKEN_KEY);
+      const token = await getItemAsync(ACCESS_TOKEN_KEY);
       if (!isActive) return;
 
       if (!token) {

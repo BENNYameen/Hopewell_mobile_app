@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { useGetOffersQuery, Offer } from "@/profile/profile.api";
+import { V } from "@/theme/vajra";
 
 export default function Offers() {
   const { data: offers = [], isLoading } = useGetOffersQuery();
@@ -133,16 +134,17 @@ const styles = StyleSheet.create({
   },
   secondaryButton: {
     borderWidth: 1,
-    borderColor: "#21B3A7",
+    borderColor: V.headingDeep,
     paddingVertical: 8,
     paddingHorizontal: 16,
     borderRadius: 999,
     marginRight: 10,
+    backgroundColor: V.card,
   },
   secondaryText: {
     fontSize: 12,
     fontWeight: "700",
-    color: "#0F6A6A",
+    color: V.headingDeep,
   },
   modalBackdrop: {
     flex: 1,

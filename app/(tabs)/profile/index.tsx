@@ -1,7 +1,15 @@
 import { useRouter } from "expo-router";
 import { useCallback } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 
+import { V } from "@/theme/vajra";
 import { useGetMeQuery } from "@/profile/profile.api";
 import { useGetWalletBalanceQuery } from "@/wallet/wallet.api";
 import { IconSymbol } from "components/ui/icon-symbol";
@@ -10,37 +18,29 @@ type RowId =
   | "personal"
   | "wallet"
   | "charging-history"
-  | "privacy"
-  | "terms"
-  | "notifications"
-  | "help"
+  | "transactions"
   | "logout";
 
 type RowItem = {
   id: RowId;
   label: string;
   value?: string;
+  danger?: boolean;
 };
 
 const PROFILE_ITEMS: RowItem[] = [
   { id: "personal", label: "Personal info" },
-  { id: "wallet", label: "Wallet", value: "₹ 2,450" },
+  { id: "wallet", label: "Wallet" },
   { id: "charging-history", label: "Charging history" },
-  { id: "privacy", label: "Privacy & data" },
-  { id: "terms", label: "Terms of service" },
-  { id: "notifications", label: "Notifications" },
-  { id: "help", label: "Help & support" },
-  { id: "logout", label: "Log out" },
+  { id: "transactions", label: "Transactions" },
+  { id: "logout", label: "Log out", danger: true },
 ];
 
 const ROUTES = {
   personal: "/profile/personal",
   wallet: "/profile/wallet",
   "charging-history": "/profile/charging-history",
-  privacy: "/profile/privacy",
-  terms: "/profile/terms",
-  notifications: "/profile/notifications",
-  help: "/profile/help",
+  transactions: "/profile/transactions",
   logout: "/profile/logout",
 } as const;
 
@@ -50,17 +50,24 @@ export default function Profile() {
   const { data: walletData, isLoading: walletLoading } =
     useGetWalletBalanceQuery();
 
-  const openScreen = useCallback((id: RowId) => {
-    router.push(ROUTES[id]);
-  }, [router]);
+  const walletText = walletLoading
+    ? "Loading..."
+    : walletData
+      ? `${walletData.currency === "INR" ? "₹" : walletData.currency} ${Number(walletData.balance).toFixed(2)}`
+      : "--";
+
+  const openScreen = useCallback(
+    (id: RowId) => {
+      router.push(ROUTES[id]);
+    },
+    [router],
+  );
 
   return (
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.header}>
-          <Pressable style={styles.backButton} onPress={() => router.back()}>
-            <IconSymbol name="arrow.left" size={18} color="#0F172A" />
-          </Pressable>
+          <View style={styles.headerSpacer} />
           <Text style={styles.headerTitle}>Account</Text>
           <View style={styles.headerSpacer} />
         </View>
@@ -83,24 +90,31 @@ export default function Profile() {
                 index === PROFILE_ITEMS.length - 1 && styles.rowLast,
               ]}
             >
-              <Text style={styles.rowLabel}>{item.label}</Text>
+              <Text
+                style={[
+                  styles.rowLabel,
+                  item.danger && styles.rowLabelDanger,
+                ]}
+              >
+                {item.label}
+              </Text>
               <View style={styles.rowRight}>
                 {item.id === "wallet" ? (
-                  <Text style={styles.rowValue}>
-                    {walletLoading
-                      ? "Loading..."
-                      : `${(walletData?.currency ?? "INR") === "INR" ? "₹" : ""}${
-                          walletData?.balance ?? 0
-                        }`}
-                  </Text>
-                ) : item.value ? (
-                  <Text style={styles.rowValue}>{item.value}</Text>
+                  <Text style={styles.rowValue}>{walletText}</Text>
                 ) : null}
-                <IconSymbol name="chevron.right" size={18} color="#9AA7BF" />
+                {!item.danger ? (
+                  <IconSymbol name="chevron.right" size={18} color="#9AA7BF" />
+                ) : null}
               </View>
             </Pressable>
           ))}
         </View>
+
+        <Text style={styles.footNote}>
+          {Platform.OS === "web"
+            ? "Vajra Volt Web - same account, all devices"
+            : "Vajra Volt Web · same account, all devices"}
+        </Text>
       </ScrollView>
     </View>
   );
@@ -109,12 +123,12 @@ export default function Profile() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F3F6FB",
+    backgroundColor: V.pageBg,
   },
   content: {
-    paddingHorizontal: 16,
+    paddingHorizontal: V.appPadH,
     paddingTop: 40,
-    paddingBottom: 40,
+    paddingBottom: 128,
   },
   header: {
     flexDirection: "row",
@@ -126,16 +140,6 @@ const styles = StyleSheet.create({
     fontSize: 26,
     fontWeight: "700",
     color: "#0F172A",
-  },
-  backButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "#FFFFFF",
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "rgba(40, 92, 153, 0.12)",
   },
   headerSpacer: {
     width: 36,
@@ -163,17 +167,24 @@ const styles = StyleSheet.create({
     color: "#0F172A",
   },
   card: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 18,
+    backgroundColor: V.card,
+    borderRadius: V.radiusPanel,
     paddingVertical: 4,
     borderWidth: 1,
-    borderColor: "rgba(40, 92, 153, 0.12)",
-    shadowColor: "#0B2A5E",
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 2,
+    borderColor: V.borderNavy,
+    ...V.shadowCard,
     marginBottom: 18,
+  },
+  rowLabelDanger: {
+    color: V.error,
+  },
+  footNote: {
+    marginTop: 24,
+    fontSize: 10,
+    fontWeight: "600",
+    color: V.label,
+    textAlign: "center",
+    lineHeight: 14,
   },
   row: {
     flexDirection: "row",
@@ -182,7 +193,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderColor: "rgba(40, 92, 153, 0.08)",
+    borderColor: V.borderHairline,
   },
   rowLast: {
     borderBottomWidth: 0,

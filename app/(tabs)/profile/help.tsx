@@ -9,6 +9,7 @@ import {
 import { useRouter } from "expo-router";
 
 import { IconSymbol } from "components/ui/icon-symbol";
+import { V } from "@/theme/vajra";
 import { useGetSupportConfigQuery } from "@/profile/profile.api";
 
 export default function HelpSupport() {
@@ -27,7 +28,7 @@ export default function HelpSupport() {
     <View style={styles.container}>
       <View style={styles.header}>
         <Pressable style={styles.backButton} onPress={() => router.back()}>
-          <IconSymbol name="arrow.left" size={18} color="#0F172A" />
+          <IconSymbol name="arrow.left" size={18} color={V.headingDeep} />
         </Pressable>
         <Text style={styles.headerTitle}>Help</Text>
         <View style={styles.headerSpacer} />
@@ -90,11 +91,11 @@ export default function HelpSupport() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F3F6FB",
+    backgroundColor: V.pageBg,
   },
   header: {
     paddingTop: 40,
-    paddingHorizontal: 16,
+    paddingHorizontal: V.appPadH,
     paddingBottom: 12,
     flexDirection: "row",
     alignItems: "center",
@@ -104,23 +105,23 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: V.borderNavy,
+    backgroundColor: V.card,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "rgba(40, 92, 153, 0.12)",
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#0F172A",
+    color: V.headingDeep,
   },
   headerSpacer: {
     width: 36,
     height: 36,
   },
   content: {
-    paddingHorizontal: 16,
+    paddingHorizontal: V.appPadH,
     paddingBottom: 40,
   },
   sectionTitle: {

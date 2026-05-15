@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 
+import { V } from "@/theme/vajra";
 import { IconSymbol } from "components/ui/icon-symbol";
 import { RecentContent } from "../recent";
 
@@ -9,11 +10,13 @@ export default function ChargingHistory() {
 
   return (
     <View style={styles.container}>
-      <Pressable style={styles.backRow} onPress={() => router.back()}>
-        <IconSymbol name="arrow.left" size={18} color="#0F172A" />
-        <Text style={styles.backText}>Back</Text>
-      </Pressable>
-      <Text style={styles.title}>Charging history</Text>
+      <View style={styles.headerRow}>
+        <Pressable style={styles.backBtn} onPress={() => router.back()}>
+          <IconSymbol name="arrow.left" size={18} color={V.headingDeep} />
+        </Pressable>
+        <Text style={styles.title}>Charging history</Text>
+        <View style={styles.headerSpacer} />
+      </View>
       <View style={styles.listWrap}>
         <RecentContent showHeader={false} withContainer={false} />
       </View>
@@ -24,26 +27,34 @@ export default function ChargingHistory() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F3F6FB",
-    paddingHorizontal: 16,
+    backgroundColor: V.pageBg,
+    paddingHorizontal: V.appPadH,
     paddingTop: 40,
   },
-  backRow: {
+  headerRow: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
     marginBottom: 16,
   },
-  backText: {
-    marginLeft: 6,
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#1A2850",
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: V.borderNavy,
+    backgroundColor: V.card,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerSpacer: {
+    width: 36,
+    height: 36,
   },
   title: {
     fontSize: 22,
     fontWeight: "700",
-    color: "#0F172A",
-    marginBottom: 12,
+    color: V.headingDeep,
   },
   listWrap: {
     flex: 1,

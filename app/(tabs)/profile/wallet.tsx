@@ -1,6 +1,7 @@
-import { Pressable, StyleSheet, Text, View, ViewStyle } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View, ViewStyle } from "react-native";
 import { useRouter } from "expo-router";
 
+import { V } from "@/theme/vajra";
 import { IconSymbol } from "components/ui/icon-symbol";
 import { useGetWalletBalanceQuery } from "@/wallet/wallet.api";
 
@@ -26,14 +27,13 @@ export function WalletContent({
     ? "..."
     : isError
     ? "--"
-    : `${data?.currency ?? "INR"} ${data?.balance ?? 0}`;
+    : `₹ ${Number(data?.balance ?? 0).toFixed(2)}`;
 
   return (
     <View style={[styles.container, containerStyle]}>
       {showBack ? (
-        <Pressable style={styles.backRow} onPress={onBack}>
-          <IconSymbol name="arrow.left" size={18} color="#0F172A" />
-          <Text style={styles.backText}>Back</Text>
+        <Pressable style={styles.backBtn} onPress={onBack}>
+          <IconSymbol name="arrow.left" size={18} color={V.headingDeep} />
         </Pressable>
       ) : null}
 
@@ -50,11 +50,21 @@ export function WalletContent({
         <View style={styles.cardGlow} />
         <Text style={styles.cardLabel}>Current balance</Text>
         <Text style={styles.cardValue}>{balanceText}</Text>
-        <Pressable style={styles.addButton} onPress={onAddMoney}>
-          <View style={styles.addIcon}>
-            <IconSymbol name="plus" size={14} color="#D11D2E" />
-          </View>
-          <Text style={styles.addText}>Add money</Text>
+        <Pressable
+          style={[
+            styles.addButton,
+            Platform.OS === "web" ? styles.addButtonWeb : styles.addButtonNative,
+          ]}
+          onPress={onAddMoney}
+        >
+          {Platform.OS === "web" ? (
+            <>
+              <Text style={styles.addPlus}>+</Text>
+              <Text style={styles.addTextWeb}>Add money via mobile app</Text>
+            </>
+          ) : (
+            <Text style={styles.addTextNative}>+ Add money via mobile app</Text>
+          )}
         </Pressable>
       </View>
 
@@ -71,6 +81,7 @@ export default function Wallet() {
 
   return (
     <WalletContent
+      showBack={Platform.OS !== "web"}
       onBack={() => router.back()}
       onAddMoney={() => router.push("/profile/add-money")}
       onTransactions={() => router.push("/profile/transactions")}
@@ -81,25 +92,25 @@ export default function Wallet() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F3F6FB",
-    paddingHorizontal: 16,
+    backgroundColor: V.pageBg,
+    paddingHorizontal: V.appPadH,
     paddingTop: 40,
   },
-  backRow: {
-    flexDirection: "row",
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: V.borderNavy,
+    backgroundColor: V.card,
     alignItems: "center",
+    justifyContent: "center",
     marginBottom: 18,
-  },
-  backText: {
-    marginLeft: 6,
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#1A2850",
   },
   title: {
     fontSize: 24,
     fontWeight: "700",
-    color: "#0F172A",
+    color: V.headingDeep,
   },
   titleRow: {
     flexDirection: "row",
@@ -108,67 +119,82 @@ const styles = StyleSheet.create({
     marginBottom: 18,
   },
   refreshButton: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: "rgba(26, 40, 80, 0.15)",
-    backgroundColor: "#FFFFFF",
+    borderColor: V.borderNavy,
+    backgroundColor: V.card,
   },
   refreshText: {
     fontSize: 12,
     fontWeight: "700",
-    color: "#1A2850",
+    color: V.heading,
   },
   card: {
-    backgroundColor: "#1E9FA3",
-    borderRadius: 22,
-    padding: 22,
+    backgroundColor: V.primaryHover,
+    borderRadius: V.radiusWallet,
+    padding: 24,
     overflow: "hidden",
+    shadowColor: V.primary,
+    shadowOpacity: 0.35,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 6,
   },
   cardGlow: {
     position: "absolute",
-    right: -80,
-    top: -60,
-    width: 220,
-    height: 220,
-    borderRadius: 110,
-    backgroundColor: "rgba(255, 255, 255, 0.18)",
+    right: -40,
+    top: -40,
+    width: 160,
+    height: 160,
+    borderRadius: 80,
+    backgroundColor: "rgba(255, 255, 255, 0.15)",
   },
   cardLabel: {
-    color: "rgba(255, 255, 255, 0.85)",
+    color: "rgba(255, 255, 255, 0.80)",
     fontSize: 14,
-    fontWeight: "600",
+    fontWeight: "500",
   },
   cardValue: {
-    marginTop: 10,
-    fontSize: 32,
-    fontWeight: "700",
+    marginTop: 8,
+    fontSize: 36,
+    fontWeight: "900",
     color: "#FFFFFF",
   },
   addButton: {
     marginTop: 20,
     alignSelf: "flex-start",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 999,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
     flexDirection: "row",
     alignItems: "center",
+    gap: 6,
+    borderRadius: 999,
+    paddingVertical: 10,
+    paddingHorizontal: 18,
   },
-  addIcon: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: "rgba(33, 179, 167, 0.15)",
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 8,
+  addButtonWeb: {
+    backgroundColor: "#FFFFFF",
+    borderWidth: 0,
   },
-  addText: {
+  addButtonNative: {
+    backgroundColor: "rgba(255, 255, 255, 0.15)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.30)",
+  },
+  addPlus: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: V.primary,
+  },
+  addTextWeb: {
     fontSize: 13,
-    fontWeight: "700",
-    color: "#1A7F7C",
+    fontWeight: "600",
+    color: V.primary,
+  },
+  addTextNative: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#FFFFFF",
   },
   transactionsRow: {
     marginTop: 28,
@@ -179,7 +205,7 @@ const styles = StyleSheet.create({
   transactionsText: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#1A2850",
+    color: V.heading,
     marginRight: 6,
   },
 });

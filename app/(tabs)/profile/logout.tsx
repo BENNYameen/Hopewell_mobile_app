@@ -2,6 +2,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 
 import { IconSymbol } from "components/ui/icon-symbol";
+import { V } from "@/theme/vajra";
 import { clearStoredSession } from "@/auth/session";
 import { useLogoutMutation } from "@/auth/auth.api";
 import { logout as logoutAction } from "@/features/auth/slice";
@@ -26,9 +27,8 @@ export default function Logout() {
 
   return (
     <View style={styles.container}>
-      <Pressable style={styles.backRow} onPress={() => router.back()}>
-        <IconSymbol name="arrow.left" size={18} color="#0F172A" />
-        <Text style={styles.backText}>Back</Text>
+      <Pressable style={styles.backBtn} onPress={() => router.back()}>
+        <IconSymbol name="arrow.left" size={18} color={V.headingDeep} />
       </Pressable>
       <Text style={styles.title}>Log out</Text>
       <Text style={styles.body}>
@@ -51,25 +51,25 @@ export default function Logout() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F3F6FB",
-    paddingHorizontal: 16,
+    backgroundColor: V.pageBg,
+    paddingHorizontal: V.appPadH,
     paddingTop: 40,
   },
-  backRow: {
-    flexDirection: "row",
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: V.borderNavy,
+    backgroundColor: V.card,
     alignItems: "center",
+    justifyContent: "center",
     marginBottom: 16,
-  },
-  backText: {
-    marginLeft: 6,
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#1A2850",
   },
   title: {
     fontSize: 22,
     fontWeight: "700",
-    color: "#0F172A",
+    color: V.headingDeep,
     marginBottom: 12,
   },
   body: {

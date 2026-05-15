@@ -1,5 +1,4 @@
 import { useRouter } from "expo-router";
-import * as SecureStore from "expo-secure-store";
 import { useState } from "react";
 import {
   Linking,
@@ -13,7 +12,10 @@ import {
 import WebView from "react-native-webview";
 import type { WebViewNavigation } from "react-native-webview";
 
+import { USER_EMAIL_KEY, USER_NAME_KEY } from "@/auth/session";
+import { getItemAsync } from "@/auth/secureStorage";
 import { api } from "@/api/api";
+import { useGetMeQuery } from "@/profile/profile.api";
 import { useAppDispatch } from "@/store/hooks";
 import { useInitiateTopupMutation } from "@/wallet/wallet.api";
 import { IconSymbol } from "components/ui/icon-symbol";
@@ -51,6 +53,7 @@ function buildRazorpayHtml(options: object): string {
 export default function AddMoney() {
   const router = useRouter();
   const dispatch = useAppDispatch();
+  const { data: me } = useGetMeQuery();
   const [amount, setAmount] = useState("500");
   const [paymentError, setPaymentError] = useState("");
   const [validationError, setValidationError] = useState("");
@@ -77,8 +80,10 @@ export default function AddMoney() {
       }
 
       const userName =
-        (await SecureStore.getItemAsync("user_name")) ?? "Vajra Volt";
-      const userPhone = await SecureStore.getItemAsync("user_phone");
+        me?.full_name ?? (await getItemAsync(USER_NAME_KEY)) ?? "Vajra Volt";
+      const storedEmail = await getItemAsync(USER_EMAIL_KEY);
+      const userContact =
+        me?.phone_number?.trim() || storedEmail || "";
 
       setCheckoutHtml(
         buildRazorpayHtml({
@@ -90,7 +95,7 @@ export default function AddMoney() {
           order_id: order.order_id,
           prefill: {
             name: userName,
-            contact: userPhone ?? "",
+            contact: userContact,
           },
           theme: { color: "#21B3A7" },
         }),

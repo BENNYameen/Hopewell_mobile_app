@@ -131,7 +131,19 @@ export const chargingApi = api.injectEndpoints({
       },
     }),
     getActiveChargingSession: builder.query<ChargingSession | null, void>({
-      query: () => ({ url: "/charging/active", method: "GET" }),
+      async queryFn(_arg, _api, _extraOptions, baseQuery) {
+        const result = await baseQuery({
+          url: "/charging/active",
+          method: "GET",
+        });
+        if (result.error) {
+          if (result.error.status === 404) {
+            return { data: null };
+          }
+          return { error: result.error };
+        }
+        return { data: result.data as ChargingSession };
+      },
     }),
   }),
   overrideExisting: false,
