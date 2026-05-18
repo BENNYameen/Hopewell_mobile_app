@@ -1,6 +1,5 @@
 import { useFocusEffect } from "@react-navigation/native";
-import Constants from "expo-constants";
-import { useRouter } from "expo-router";
+import * as Location from "expo-location";
 import { useCallback, useMemo, useState } from "react";
 import {
   Linking,
@@ -13,65 +12,64 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
-import { WebView, WebViewMessageEvent } from "react-native-webview";
 
+import type { Charger } from "../../components/maps/types";
+import MapWrapper from "../../components/maps/MapWrapper";
 import {
-  ChargingStationMapItem,
+  type ChargingStationMapItem,
   useGetChargersQuery,
 } from "@/charging/stations.api";
-import { V } from "@/theme/vajra";
-import { useGetWalletBalanceQuery } from "@/wallet/wallet.api";
 import { IconSymbol } from "components/ui/icon-symbol";
-import { WalletContent } from "./profile/wallet";
 
 type StationTab = "all" | "available" | "favorites";
 
-type MarkerPayload = {
-  type: "stationPress";
-  stationId: string;
+type LocationState = {
+  latitude: number;
+  longitude: number;
 };
 
-const DEFAULT_MAP_CENTER = { latitude: 12.9716, longitude: 77.5946 };
+function toCharger(station: ChargingStationMapItem): Charger | null {
+  if (typeof station.latitude !== "number" || typeof station.longitude !== "number") {
+    return null;
+  }
+
+  return {
+    id: station.id,
+    name: station.name,
+    latitude: station.latitude,
+    longitude: station.longitude,
+    address: station.address,
+    availability: station.availabilityLabel,
+    connectorCount: station.connectorCount,
+    status: station.isAvailable ? "available" : "unavailable",
+  };
+}
 
 export default function MapScreen() {
-  const router = useRouter();
   const { height } = useWindowDimensions();
-  const googleMapsApiKey =
-    Constants.expoConfig?.extra?.googleMapsApiKey ??
-    Constants.manifest2?.extra?.expoClient?.extra?.googleMapsApiKey ??
-    "";
   const [activeTab, setActiveTab] = useState<StationTab>("all");
-  const [selectedStationId, setSelectedStationId] = useState<string | null>(
-    null,
-  );
+  const [selectedStationId, setSelectedStationId] = useState<string | null>(null);
   const [likedStations, setLikedStations] = useState<string[]>([]);
-  const [infoStation, setInfoStation] = useState<ChargingStationMapItem | null>(
-    null,
-  );
-  const [isSearching, setIsSearching] = useState(false);
+  const [infoStation, setInfoStation] = useState<ChargingStationMapItem | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [walletOpen, setWalletOpen] = useState(false);
-  const { data: walletData, refetch: refetchWallet } =
-    useGetWalletBalanceQuery();
+  const [currentLocation, setCurrentLocation] = useState<LocationState | null>(null);
+  const [locationError, setLocationError] = useState<string | null>(null);
+
   const {
     data: allStations = [],
     isLoading,
     isFetching,
+    error,
     refetch: refetchStations,
   } = useGetChargersQuery();
-  const sheetScrollMaxHeight = Math.min(
-    420,
-    Math.max(240, Math.floor(height * 0.38)),
-  );
 
   useFocusEffect(
     useCallback(() => {
-      refetchWallet();
       refetchStations();
-    }, [refetchStations, refetchWallet]),
+    }, [refetchStations]),
   );
 
-  const stations = useMemo(() => {
+  const filteredStations = useMemo(() => {
     const normalizedQuery = searchQuery.trim().toLowerCase();
 
     return allStations.filter((station) => {
@@ -93,118 +91,22 @@ export default function MapScreen() {
     });
   }, [activeTab, allStations, likedStations, searchQuery]);
 
-  const markers = useMemo(
-    () =>
-      stations.filter(
-        (station) =>
-          typeof station.latitude === "number" &&
-          typeof station.longitude === "number",
-      ),
-    [stations],
+  const mapChargers = useMemo(
+    () => filteredStations.map(toCharger).filter((item): item is Charger => !!item),
+    [filteredStations],
   );
 
-  const mapHtml = useMemo(() => {
-    const markerData = JSON.stringify(
-      markers.map((station) => ({
-        id: station.id,
-        name: station.name,
-        address: station.address,
-        latitude: station.latitude,
-        longitude: station.longitude,
-        availabilityLabel: station.availabilityLabel,
-        color: station.isAvailable ? "#21B3A7" : "#E0586A",
-      })),
-    );
-    const center = markers[0]
-      ? {
-          latitude: markers[0].latitude ?? DEFAULT_MAP_CENTER.latitude,
-          longitude: markers[0].longitude ?? DEFAULT_MAP_CENTER.longitude,
-        }
-      : DEFAULT_MAP_CENTER;
+  const selectedChargerId = useMemo(() => {
+    if (!selectedStationId) return null;
+    return mapChargers.some((charger) => charger.id === selectedStationId)
+      ? selectedStationId
+      : null;
+  }, [mapChargers, selectedStationId]);
 
-    if (!googleMapsApiKey) {
-      return `<!doctype html>
-<html>
-  <body style="margin:0;display:flex;align-items:center;justify-content:center;background:#F3F6FB;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
-    <div style="padding:24px;text-align:center;color:#13233D;">
-      Google Maps API key is missing.
-    </div>
-  </body>
-</html>`;
-    }
-
-    return `<!doctype html>
-<html>
-  <head>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
-    <style>
-      html, body, #map { height: 100%; margin: 0; padding: 0; }
-      .gm-style-cc { display: none; }
-    </style>
-    <script>
-      const markers = ${markerData};
-
-      function postStationPress(stationId) {
-        if (window.ReactNativeWebView) {
-          window.ReactNativeWebView.postMessage(JSON.stringify({
-            type: "stationPress",
-            stationId
-          }));
-        }
-      }
-
-      function initMap() {
-        const center = { lat: ${center.latitude}, lng: ${center.longitude} };
-        const map = new google.maps.Map(document.getElementById("map"), {
-          center,
-          zoom: markers.length > 0 ? 12 : 10,
-          disableDefaultUI: true,
-          zoomControl: true,
-          mapTypeControl: false,
-          streetViewControl: false,
-          fullscreenControl: false,
-        });
-
-        markers.forEach((station) => {
-          const marker = new google.maps.Marker({
-            map,
-            position: { lat: station.latitude, lng: station.longitude },
-            title: station.name,
-            icon: {
-              path: google.maps.SymbolPath.CIRCLE,
-              fillColor: station.color,
-              fillOpacity: 1,
-              strokeColor: "#FFFFFF",
-              strokeWeight: 2,
-              scale: 9,
-            },
-          });
-
-          marker.addListener("click", () => postStationPress(station.id));
-        });
-      }
-    </script>
-    <script async src="https://maps.googleapis.com/maps/api/js?key=${googleMapsApiKey}&callback=initMap"></script>
-  </head>
-  <body>
-    <div id="map"></div>
-  </body>
-</html>`;
-  }, [googleMapsApiKey, markers]);
-
-  const openDirections = useCallback((station: ChargingStationMapItem) => {
-    if (
-      typeof station.latitude !== "number" ||
-      typeof station.longitude !== "number"
-    ) {
-      return;
-    }
-
-    const label = encodeURIComponent(station.name);
-    const url = `https://www.google.com/maps/dir/?api=1&destination=${station.latitude},${station.longitude}&query=${label}`;
-
-    Linking.openURL(url);
-  }, []);
+  const mapErrorMessage = useMemo(() => {
+    if (error) return "Could not fetch charger locations. Please try again.";
+    return undefined;
+  }, [error]);
 
   const toggleLike = useCallback((id: string) => {
     setLikedStations((prev) =>
@@ -212,91 +114,77 @@ export default function MapScreen() {
     );
   }, []);
 
-  const handleMapMessage = useCallback(
-    (event: WebViewMessageEvent) => {
-      try {
-        const payload = JSON.parse(event.nativeEvent.data) as MarkerPayload;
+  const openDirections = useCallback((station: ChargingStationMapItem) => {
+    if (typeof station.latitude !== "number" || typeof station.longitude !== "number") {
+      return;
+    }
 
-        if (payload.type !== "stationPress") {
-          return;
-        }
+    const label = encodeURIComponent(station.name);
+    const url = `https://www.google.com/maps/dir/?api=1&destination=${station.latitude},${station.longitude}&query=${label}`;
+    Linking.openURL(url);
+  }, []);
 
-        const station = allStations.find(
-          (item) => item.id === payload.stationId,
-        );
-
-        if (!station) {
-          return;
-        }
-
-        setSelectedStationId(station.id);
-        setInfoStation(station);
-      } catch {
-        // Ignore malformed marker messages from the embedded map.
+  const requestCurrentLocation = useCallback(async () => {
+    try {
+      const permission = await Location.requestForegroundPermissionsAsync();
+      if (permission.status !== "granted") {
+        setLocationError("Location permission denied. Enable it to center the map.");
+        return;
       }
+
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      setLocationError(null);
+      setCurrentLocation({
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+      });
+    } catch {
+      setLocationError("Unable to read current location right now.");
+    }
+  }, []);
+
+  const onMarkerPress = useCallback(
+    (chargerId: string) => {
+      setSelectedStationId(chargerId);
+      const station = allStations.find((item) => item.id === chargerId) ?? null;
+      setInfoStation(station);
     },
     [allStations],
   );
 
+  const sheetScrollMaxHeight = Math.min(420, Math.max(240, Math.floor(height * 0.38)));
+
   return (
     <View style={styles.container}>
-      <WebView
-        style={StyleSheet.absoluteFillObject}
-        source={{ html: mapHtml }}
-        originWhitelist={["*"]}
-        javaScriptEnabled
-        domStorageEnabled
-        onMessage={handleMapMessage}
+      <MapWrapper
+        chargers={mapChargers}
+        selectedChargerId={selectedChargerId}
+        currentLocation={currentLocation}
+        isLoading={isLoading || isFetching}
+        errorMessage={mapErrorMessage}
+        onMarkerPress={onMarkerPress}
       />
 
       <View style={styles.topOverlay} pointerEvents="box-none">
         <View style={styles.headerRow}>
           <View style={styles.searchCard}>
-            {isSearching ? (
-              <View style={styles.searchInputWrap}>
-                <IconSymbol name="search" size={16} color="#6C7CA6" />
-                <TextInput
-                  autoFocus
-                  placeholder="Search stations"
-                  placeholderTextColor="#8B97B2"
-                  value={searchQuery}
-                  onChangeText={setSearchQuery}
-                  style={styles.searchInput}
-                />
-              </View>
-            ) : (
-              <Pressable
-                style={styles.searchPlaceholder}
-                onPress={() => setIsSearching(true)}
-              >
-                <IconSymbol name="search" size={16} color="#6C7CA6" />
-                <Text style={styles.searchPlaceholderText}>
-                  Search stations
-                </Text>
-              </Pressable>
-            )}
+            <IconSymbol name="search" size={16} color="#6C7CA6" />
+            <TextInput
+              placeholder="Search stations"
+              placeholderTextColor="#8B97B2"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              style={styles.searchInput}
+            />
           </View>
-          <Pressable
-            style={styles.walletCard}
-            onPress={() => setWalletOpen(true)}
-          >
-            <Text style={styles.walletText}>
-              {(walletData?.currency ?? "INR") === "INR" ? "₹" : ""}
-              {walletData?.balance ?? 0}
-            </Text>
+          <Pressable style={styles.locationButton} onPress={requestCurrentLocation}>
+            <IconSymbol name="location.fill" size={14} color="#1A2850" />
+            <Text style={styles.locationText}>Locate</Text>
           </Pressable>
         </View>
-        {isSearching ? (
-          <Pressable
-            onPress={() => {
-              setIsSearching(false);
-              setSearchQuery("");
-            }}
-            style={styles.cancelButton}
-          >
-            <Text style={styles.cancelText}>Cancel</Text>
-          </Pressable>
-        ) : null}
+        {locationError ? <Text style={styles.locationHint}>{locationError}</Text> : null}
       </View>
 
       <View style={styles.sheet}>
@@ -308,16 +196,9 @@ export default function MapScreen() {
               style={[styles.sheetTab, activeTab === tab && styles.tabActive]}
             >
               <Text
-                style={[
-                  styles.sheetTabText,
-                  activeTab === tab && styles.sheetTabTextActive,
-                ]}
+                style={[styles.sheetTabText, activeTab === tab && styles.sheetTabTextActive]}
               >
-                {tab === "all"
-                  ? "All"
-                  : tab === "available"
-                    ? "Available"
-                    : "Favorites"}
+                {tab === "all" ? "All" : tab === "available" ? "Available" : "Favorites"}
               </Text>
               {activeTab === tab ? <View style={styles.tabLine} /> : null}
             </Pressable>
@@ -329,22 +210,15 @@ export default function MapScreen() {
           contentContainerStyle={styles.sheetContent}
           showsVerticalScrollIndicator
         >
-          {isLoading || isFetching ? (
-            <Text style={styles.emptyText}>Loading charging stations...</Text>
+          {!isLoading && !isFetching && filteredStations.length === 0 ? (
+            <Text style={styles.emptyText}>No charging stations match the current filters.</Text>
           ) : null}
 
-          {!isLoading && !isFetching && stations.length === 0 ? (
-            <Text style={styles.emptyText}>
-              No charging stations match the current filters.
-            </Text>
-          ) : null}
-
-          {stations.map((station) => {
+          {filteredStations.map((station) => {
             const isLiked = likedStations.includes(station.id);
             const isSelected = selectedStationId === station.id;
             const hasCoordinates =
-              typeof station.latitude === "number" &&
-              typeof station.longitude === "number";
+              typeof station.latitude === "number" && typeof station.longitude === "number";
 
             return (
               <Pressable
@@ -353,10 +227,7 @@ export default function MapScreen() {
                   setSelectedStationId(station.id);
                   setInfoStation(station);
                 }}
-                style={[
-                  styles.stationCard,
-                  isSelected && styles.stationCardSelected,
-                ]}
+                style={[styles.stationCard, isSelected && styles.stationCardSelected]}
               >
                 <View style={styles.stationHeader}>
                   <Text style={styles.stationName}>{station.name}</Text>
@@ -375,10 +246,7 @@ export default function MapScreen() {
                       />
                     </Pressable>
                     <Pressable
-                      style={[
-                        styles.circleIcon,
-                        !hasCoordinates && styles.circleIconDisabled,
-                      ]}
+                      style={[styles.circleIcon, !hasCoordinates && styles.circleIconDisabled]}
                       onPress={(event) => {
                         event.stopPropagation();
                         openDirections(station);
@@ -386,15 +254,6 @@ export default function MapScreen() {
                       disabled={!hasCoordinates}
                     >
                       <IconSymbol name="directions" size={14} color="#0F6A6A" />
-                    </Pressable>
-                    <Pressable
-                      onPress={(event) => {
-                        event.stopPropagation();
-                        setInfoStation(station);
-                      }}
-                      style={styles.circleIcon}
-                    >
-                      <Text style={styles.circleText}>i</Text>
                     </Pressable>
                   </View>
                 </View>
@@ -410,27 +269,7 @@ export default function MapScreen() {
                   >
                     {station.availabilityLabel}
                   </Text>
-                  <Text style={styles.stationMeta}>
-                    {station.connectorSummary}
-                  </Text>
-                </View>
-                <View style={styles.tagRow}>
-                  <View style={styles.tag}>
-                    <Text style={styles.tagText}>{station.model}</Text>
-                  </View>
-                  <View style={styles.tag}>
-                    <Text style={styles.tagText}>{station.vendor}</Text>
-                  </View>
-                  <View style={styles.tag}>
-                    <Text style={styles.tagText}>
-                      {station.connectorCount} connectors
-                    </Text>
-                  </View>
-                  {!hasCoordinates ? (
-                    <View style={styles.tag}>
-                      <Text style={styles.tagText}>No map location</Text>
-                    </View>
-                  ) : null}
+                  <Text style={styles.stationMeta}>{station.connectorSummary}</Text>
                 </View>
               </Pressable>
             );
@@ -444,15 +283,10 @@ export default function MapScreen() {
         animationType="fade"
         onRequestClose={() => setInfoStation(null)}
       >
-        <Pressable
-          style={styles.modalBackdrop}
-          onPress={() => setInfoStation(null)}
-        >
+        <Pressable style={styles.modalBackdrop} onPress={() => setInfoStation(null)}>
           <Pressable style={styles.modalCard}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>
-                {infoStation?.name ?? "Station"}
-              </Text>
+              <Text style={styles.modalTitle}>{infoStation?.name ?? "Station"}</Text>
               <Pressable onPress={() => setInfoStation(null)}>
                 <IconSymbol name="xmark" size={16} color="#1A2850" />
               </Pressable>
@@ -460,62 +294,14 @@ export default function MapScreen() {
             <Text style={styles.modalAddress}>{infoStation?.address}</Text>
             <View style={styles.modalRow}>
               <Text style={styles.modalLabel}>Status</Text>
-              <Text style={styles.modalValue}>
-                {infoStation?.availabilityLabel ?? "Unknown"}
-              </Text>
+              <Text style={styles.modalValue}>{infoStation?.availabilityLabel ?? "Unknown"}</Text>
             </View>
             <View style={styles.modalRow}>
               <Text style={styles.modalLabel}>Connectors</Text>
-              <Text style={styles.modalValue}>
-                {infoStation?.connectorSummary ?? "Unknown"}
-              </Text>
+              <Text style={styles.modalValue}>{infoStation?.connectorSummary ?? "Unknown"}</Text>
             </View>
-            <View style={styles.modalRow}>
-              <Text style={styles.modalLabel}>Model</Text>
-              <Text style={styles.modalValue}>
-                {infoStation?.model ?? "Unknown"}
-              </Text>
-            </View>
-            <View style={styles.modalRow}>
-              <Text style={styles.modalLabel}>Vendor</Text>
-              <Text style={styles.modalValue}>
-                {infoStation?.vendor ?? "Unknown"}
-              </Text>
-            </View>
-            <Pressable
-              style={[
-                styles.directionButton,
-                (!infoStation ||
-                  typeof infoStation.latitude !== "number" ||
-                  typeof infoStation.longitude !== "number") &&
-                  styles.directionButtonDisabled,
-              ]}
-              onPress={() => infoStation && openDirections(infoStation)}
-              disabled={
-                !infoStation ||
-                typeof infoStation.latitude !== "number" ||
-                typeof infoStation.longitude !== "number"
-              }
-            >
-              <Text style={styles.directionButtonText}>Get Directions</Text>
-            </Pressable>
           </Pressable>
         </Pressable>
-      </Modal>
-
-      <Modal
-        visible={walletOpen}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setWalletOpen(false)}
-      >
-        <View style={styles.walletModal}>
-          <WalletContent
-            onBack={() => setWalletOpen(false)}
-            onAddMoney={() => router.push("/profile/add-money")}
-            onTransactions={() => router.push("/profile/transactions")}
-          />
-        </View>
       </Modal>
     </View>
   );
@@ -523,16 +309,8 @@ export default function MapScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#F3F6FB" },
-  topOverlay: {
-    position: "absolute",
-    top: 40,
-    left: 16,
-    right: 16,
-  },
-  headerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
+  topOverlay: { position: "absolute", top: 40, left: 16, right: 16 },
+  headerRow: { flexDirection: "row", alignItems: "center", gap: 10 },
   searchCard: {
     flex: 1,
     backgroundColor: "#FFFFFF",
@@ -541,269 +319,109 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderWidth: 1,
     borderColor: "rgba(40, 92, 153, 0.12)",
-    shadowColor: "#0B2A5E",
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 2,
-  },
-  searchPlaceholder: {
     flexDirection: "row",
     alignItems: "center",
+    gap: 8,
   },
-  searchPlaceholderText: {
-    marginLeft: 8,
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#6C7CA6",
-  },
-  walletCard: {
-    marginLeft: 12,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
+  searchInput: { flex: 1, color: "#1A2850", fontWeight: "600" },
+  locationButton: {
+    backgroundColor: "#EAF7F6",
+    borderRadius: 14,
+    paddingHorizontal: 10,
     paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderWidth: 1,
-    borderColor: V.borderNavy,
-    shadowColor: V.shadowNavy,
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 3,
-  },
-  walletText: {
-    fontSize: 13,
-    fontWeight: "800",
-    color: V.primary,
-  },
-  searchInputWrap: {
     flexDirection: "row",
     alignItems: "center",
+    gap: 6,
+    borderWidth: 1,
+    borderColor: "rgba(33,179,167,0.3)",
   },
-  searchInput: {
-    flex: 1,
-    marginLeft: 8,
-    fontSize: 14,
-    color: "#0F172A",
-    paddingVertical: 0,
-  },
-  cancelButton: {
+  locationText: { color: "#1A2850", fontWeight: "700", fontSize: 12 },
+  locationHint: {
     marginTop: 8,
-    alignSelf: "flex-end",
-  },
-  cancelText: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#0F6A6A",
+    color: "#A42E3B",
+    fontSize: 12,
+    fontWeight: "600",
+    paddingHorizontal: 4,
   },
   sheet: {
     position: "absolute",
     left: 0,
     right: 0,
-    bottom: 104,
+    bottom: 0,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
     backgroundColor: "#FFFFFF",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
     paddingTop: 10,
-    borderTopWidth: 1,
-    borderColor: "rgba(40, 92, 153, 0.12)",
+    shadowColor: "#0B2A5E",
+    shadowOpacity: 0.18,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: -10 },
+    elevation: 16,
   },
-  sheetTabs: {
-    flexDirection: "row",
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderColor: "rgba(40, 92, 153, 0.1)",
-  },
-  sheetScroll: {},
-  sheetTab: {
-    flex: 1,
-    alignItems: "center",
-    paddingVertical: 12,
-  },
-  sheetTabText: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#7B8AB0",
-  },
-  sheetTabTextActive: {
-    color: "#0F172A",
-  },
-  tabActive: {},
-  tabLine: {
-    marginTop: 8,
-    width: "70%",
-    height: 3,
-    borderRadius: 999,
-    backgroundColor: "#21B3A7",
-  },
-  sheetContent: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 190,
-  },
+  sheetTabs: { flexDirection: "row", paddingHorizontal: 16, marginBottom: 8 },
+  sheetTab: { flex: 1, alignItems: "center", paddingVertical: 8, gap: 6 },
+  tabActive: { backgroundColor: "rgba(26,40,80,0.04)", borderRadius: 10 },
+  sheetTabText: { color: "#6C7CA6", fontWeight: "700", fontSize: 13 },
+  sheetTabTextActive: { color: "#13233D" },
+  tabLine: { width: 18, height: 3, borderRadius: 999, backgroundColor: "#21B3A7" },
+  sheetScroll: { paddingHorizontal: 16 },
+  sheetContent: { paddingBottom: 20 },
+  emptyText: { textAlign: "center", color: "#6C7CA6", fontWeight: "600", paddingVertical: 24 },
   stationCard: {
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderColor: "rgba(40, 92, 153, 0.12)",
-  },
-  stationCardSelected: {
-    backgroundColor: "rgba(33, 179, 167, 0.08)",
-    borderRadius: 12,
-    paddingHorizontal: 10,
-  },
-  stationHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  stationName: {
-    flex: 1,
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#13233D",
-    paddingRight: 12,
-  },
-  stationActions: {
-    flexDirection: "row",
-    alignItems: "center",
+    backgroundColor: "#F7FAFF",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "rgba(39,79,141,0.08)",
+    padding: 14,
+    marginBottom: 12,
     gap: 8,
   },
+  stationCardSelected: { borderColor: "#21B3A7", backgroundColor: "#EEF9F8" },
+  stationHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  stationName: { color: "#13233D", fontWeight: "800", fontSize: 14 },
+  stationActions: { flexDirection: "row", alignItems: "center", gap: 8 },
   circleIcon: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: "#C6D4EA",
+    borderColor: "rgba(39,79,141,0.2)",
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: "#FFFFFF",
   },
-  circleIconDisabled: {
-    opacity: 0.4,
-  },
-  circleText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#6C7CA6",
-  },
-  stationAddress: {
-    marginTop: 6,
-    fontSize: 12,
-    color: "#6C7CA6",
-    fontWeight: "600",
-  },
-  metaRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 8,
-  },
+  circleIconDisabled: { opacity: 0.35 },
+  stationAddress: { color: "#5C6D95", fontWeight: "500", fontSize: 12 },
+  metaRow: { flexDirection: "row", alignItems: "center", gap: 10, flexWrap: "wrap" },
   statusBadge: {
+    fontSize: 11,
+    fontWeight: "800",
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 999,
     overflow: "hidden",
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    fontSize: 11,
-    fontWeight: "700",
   },
-  statusBadgeAvailable: {
-    color: "#0F6A6A",
-    backgroundColor: "rgba(33, 179, 167, 0.14)",
-  },
-  statusBadgeUnavailable: {
-    color: "#A93F4D",
-    backgroundColor: "rgba(224, 88, 106, 0.14)",
-  },
-  stationMeta: {
-    marginLeft: 8,
-    fontSize: 12,
-    color: "#0F6A6A",
-    fontWeight: "600",
-  },
-  tagRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    marginTop: 8,
-  },
-  tag: {
-    backgroundColor: "#F1F6FF",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 999,
-    marginRight: 8,
-    marginBottom: 6,
-  },
-  tagText: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: "#62739A",
-  },
-  emptyText: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#6C7CA6",
-    paddingVertical: 16,
-  },
+  statusBadgeAvailable: { color: "#0E655D", backgroundColor: "rgba(33,179,167,0.18)" },
+  statusBadgeUnavailable: { color: "#A42E3B", backgroundColor: "rgba(224,88,106,0.18)" },
+  stationMeta: { color: "#4E5F88", fontWeight: "700", fontSize: 12 },
   modalBackdrop: {
     flex: 1,
-    backgroundColor: "rgba(15, 23, 42, 0.4)",
+    backgroundColor: "rgba(12, 22, 46, 0.42)",
+    alignItems: "center",
     justifyContent: "center",
-    padding: 20,
+    paddingHorizontal: 20,
   },
   modalCard: {
-    backgroundColor: "#FFFFFF",
+    width: "100%",
     borderRadius: 18,
+    backgroundColor: "#FFFFFF",
     padding: 16,
+    gap: 10,
   },
-  modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  modalTitle: {
-    flex: 1,
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#13233D",
-    paddingRight: 12,
-  },
-  modalAddress: {
-    marginTop: 6,
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#6C7CA6",
-  },
-  modalRow: {
-    marginTop: 12,
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-  modalLabel: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#8B97B2",
-  },
-  modalValue: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#1A2850",
-  },
-  directionButton: {
-    marginTop: 18,
-    backgroundColor: V.primary,
-    borderRadius: 999,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 12,
-  },
-  directionButtonDisabled: {
-    opacity: 0.45,
-  },
-  directionButtonText: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#FFFFFF",
-  },
-  walletModal: {
-    flex: 1,
-    backgroundColor: "#F3F6FB",
-  },
+  modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  modalTitle: { color: "#13233D", fontWeight: "800", fontSize: 17 },
+  modalAddress: { color: "#556689", fontSize: 13, marginBottom: 6 },
+  modalRow: { flexDirection: "row", justifyContent: "space-between", gap: 12 },
+  modalLabel: { color: "#6C7CA6", fontWeight: "700" },
+  modalValue: { color: "#1A2850", fontWeight: "700", flex: 1, textAlign: "right" },
 });
