@@ -3,10 +3,12 @@
  * (`/charging/active`, live card, empty state, History / Wallet links).
  */
 import { useRouter } from "expo-router";
+import Constants from "expo-constants";
 import { useCallback, useMemo } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Image,
   Platform,
   Pressable,
   RefreshControl,
@@ -22,6 +24,7 @@ import {
   useGetActiveChargingSessionQuery,
   useStopChargingMutation,
 } from "@/charging/charging.api";
+import { useGetChargersQuery } from "@/charging/stations.api";
 import { useChargingSocket } from "@/charging/charging.socket";
 import { isSessionLive, sessionStatusLabel } from "@/charging/sessionStatus";
 import { useGetMeQuery } from "@/profile/profile.api";
@@ -59,8 +62,13 @@ function durationMin(startTime: string, liveSec?: number | null) {
 
 export default function HomeDashboard() {
   const router = useRouter();
+  const googleMapsApiKey =
+    Constants.expoConfig?.extra?.googleMapsApiKey ??
+    Constants.manifest2?.extra?.expoClient?.extra?.googleMapsApiKey ??
+    "";
   const { data: me } = useGetMeQuery();
   const { refetch: refetchWallet } = useGetWalletBalanceQuery();
+  const { data: stations = [] } = useGetChargersQuery();
   const {
     data: activeSession,
     refetch: refetchActive,
@@ -103,6 +111,43 @@ export default function HomeDashboard() {
     firstName.length > 0 ? `Hello, ${firstName} 👋` : "Hello 👋";
 
   const hasLoadError = isError;
+  const mappableStations = useMemo(
+    () =>
+      stations.filter(
+        (station) =>
+          typeof station.latitude === "number" &&
+          typeof station.longitude === "number",
+      ),
+    [stations],
+  );
+  const mapPreviewUrl = useMemo(() => {
+    if (Platform.OS === "web") return null;
+    if (mappableStations.length === 0 || !googleMapsApiKey) return null;
+    const center = mappableStations[0];
+    const previewMarkers = mappableStations
+      .slice(0, 8)
+      .map((station) => `${station.latitude},${station.longitude}`)
+      .join("|");
+    return `https://maps.googleapis.com/maps/api/staticmap?size=1200x480&scale=2&zoom=12&maptype=roadmap&center=${center.latitude},${center.longitude}&markers=color:0x21B3A7%7C${previewMarkers}&key=${googleMapsApiKey}`;
+  }, [googleMapsApiKey, mappableStations]);
+  const webPreviewPoints = useMemo(() => {
+    if (Platform.OS !== "web" || mappableStations.length === 0) return [];
+    const pts = mappableStations.slice(0, 20);
+    const lats = pts.map((s) => s.latitude as number);
+    const lngs = pts.map((s) => s.longitude as number);
+    const minLat = Math.min(...lats);
+    const maxLat = Math.max(...lats);
+    const minLng = Math.min(...lngs);
+    const maxLng = Math.max(...lngs);
+    const latRange = Math.max(0.0001, maxLat - minLat);
+    const lngRange = Math.max(0.0001, maxLng - minLng);
+    return pts.map((s) => ({
+      id: s.id,
+      x: Math.min(98, Math.max(2, (((s.longitude as number) - minLng) / lngRange) * 100)),
+      y: Math.min(98, Math.max(2, (1 - ((s.latitude as number) - minLat) / latRange) * 100)),
+      available: s.isAvailable,
+    }));
+  }, [mappableStations]);
 
   const onStopCharging = async () => {
     if (!liveSession) return;
@@ -293,6 +338,44 @@ export default function HomeDashboard() {
             </Pressable>
           </View>
         ) : null}
+
+        <View style={styles.mapCard}>
+          <Text style={styles.mapTitle}>Nearby Chargers</Text>
+          {Platform.OS === "web" ? (
+            <View style={styles.mapPreview}>
+              {webPreviewPoints.map((point) => (
+                <View
+                  key={point.id}
+                  style={[
+                    styles.webDot,
+                    {
+                      left: `${point.x}%`,
+                      top: `${point.y}%`,
+                      backgroundColor: point.available ? "#21B3A7" : "#E0586A",
+                    },
+                  ]}
+                />
+              ))}
+            </View>
+          ) : mapPreviewUrl ? (
+            <Image
+              source={{ uri: mapPreviewUrl }}
+              resizeMode="cover"
+              style={styles.mapPreview}
+            />
+          ) : (
+            <View style={styles.mapFallback}>
+              <Text style={styles.mapFallbackText}>
+                {mappableStations.length === 0
+                  ? "Map preview unavailable. Charger locations are missing."
+                  : "Map preview unavailable. Add Google Maps API key to show it."}
+              </Text>
+            </View>
+          )}
+          <Pressable style={styles.mapCta} onPress={() => router.push("/map")}>
+            <Text style={styles.mapCtaText}>Open Full Map</Text>
+          </Pressable>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -543,5 +626,65 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
     color: V.headingDeep,
+  },
+  mapCard: {
+    marginTop: 18,
+    backgroundColor: V.card,
+    borderRadius: V.radiusCard,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: V.borderNavy,
+    ...V.shadowCard,
+  },
+  mapTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: V.headingDeep,
+    marginBottom: 10,
+  },
+  mapPreview: {
+    width: "100%",
+    height: 180,
+    borderRadius: 12,
+    backgroundColor: "#E7EEF8",
+  },
+  webDot: {
+    position: "absolute",
+    width: 9,
+    height: 9,
+    borderRadius: 999,
+    marginLeft: -4.5,
+    marginTop: -4.5,
+    borderWidth: 1.5,
+    borderColor: "#FFFFFF",
+  },
+  mapFallback: {
+    width: "100%",
+    height: 180,
+    borderRadius: 12,
+    backgroundColor: "#E7EEF8",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 16,
+  },
+  mapFallbackText: {
+    textAlign: "center",
+    fontSize: 13,
+    fontWeight: "600",
+    color: V.bodySecondary,
+    lineHeight: 18,
+  },
+  mapCta: {
+    marginTop: 12,
+    alignSelf: "flex-start",
+    backgroundColor: V.primary,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: V.radiusPill,
+  },
+  mapCtaText: {
+    color: V.card,
+    fontSize: 13,
+    fontWeight: "700",
   },
 });

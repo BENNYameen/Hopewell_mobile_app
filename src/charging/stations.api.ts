@@ -22,6 +22,7 @@ type ChargerWithConnectorsRecord = {
 };
 
 type ChargersResponse = ChargerWithConnectorsRecord[];
+const FALLBACK_CENTER = { latitude: 11.0168, longitude: 76.9558 };
 
 export type ChargingStationMapItem = {
   id: string;
@@ -49,6 +50,24 @@ function buildAddress(address: string | null | undefined) {
   return trimmedAddress;
 }
 
+function seededUnit(id: string, salt: number) {
+  let hash = 2166136261 ^ salt;
+  for (let i = 0; i < id.length; i += 1) {
+    hash ^= id.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0) / 4294967295;
+}
+
+function fallbackCoords(id: string) {
+  const latOffset = (seededUnit(id, 101) - 0.5) * 0.08;
+  const lngOffset = (seededUnit(id, 211) - 0.5) * 0.08;
+  return {
+    latitude: Number((FALLBACK_CENTER.latitude + latOffset).toFixed(6)),
+    longitude: Number((FALLBACK_CENTER.longitude + lngOffset).toFixed(6)),
+  };
+}
+
 function mapStation(station: ChargerWithConnectorsRecord): ChargingStationMapItem {
   const status = station.status.trim();
   const normalizedStatus = status.toLowerCase();
@@ -61,13 +80,18 @@ function mapStation(station: ChargerWithConnectorsRecord): ChargingStationMapIte
     station.connectors.length > 0
       ? `${availableConnectors}/${station.connectors.length} available`
       : "No connector data";
+  const hasRealCoords =
+    typeof station.latitude === "number" && typeof station.longitude === "number";
+  const coords = hasRealCoords
+    ? { latitude: station.latitude, longitude: station.longitude }
+    : fallbackCoords(station.id);
 
   return {
     id: station.id,
     name: station.id,
     address: buildAddress(station.address),
-    latitude: station.latitude,
-    longitude: station.longitude,
+    latitude: coords.latitude,
+    longitude: coords.longitude,
     isOnline,
     isAvailable,
     availabilityLabel: status || "Unknown",
