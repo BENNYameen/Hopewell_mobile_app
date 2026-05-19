@@ -1,4 +1,4 @@
-import { useWindowDimensions } from "react-native";
+import { Platform, useWindowDimensions } from "react-native";
 
 /** Sidebar width (web shell). */
 export const SIDEBAR_WIDTH = 240;
@@ -42,5 +42,36 @@ export function useResponsiveLayout() {
     isOverlaySidebar,
     contentPaddingH,
     sidebarWidth: SIDEBAR_WIDTH,
+  };
+}
+
+/**
+ * Marketing / auth screens (landing, guide, login) — same tiers as the app shell:
+ * compact (<768 phone), medium (768–1023 tablet / small laptop), expanded (≥1024 desktop).
+ */
+export function useMarketingLayout() {
+  const layout = useResponsiveLayout();
+  const { tier, width, contentPaddingH } = layout;
+  const isCompact = tier === "compact";
+  const isMedium = tier === "medium";
+  const isExpanded = tier === "expanded";
+
+  const isWeb = Platform.OS === "web";
+  const isDesktopWeb = isWeb && !isCompact;
+
+  return {
+    ...layout,
+    isWeb,
+    isDesktopWeb,
+    isCompact,
+    isMedium,
+    isExpanded,
+    /** Desktop-style guide tabs & centered hero (tablet landscape+ and laptop). */
+    layoutWide: !isCompact,
+    /** Phone / narrow web: 2×2 tabs, tighter hero, simplified header. */
+    marketingNarrow: isCompact,
+    pagePad: contentPaddingH,
+    /** Full header links on medium+ viewports. */
+    showHeaderNav: !isCompact,
   };
 }

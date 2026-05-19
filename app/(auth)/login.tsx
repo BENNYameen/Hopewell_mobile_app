@@ -23,8 +23,10 @@ import {
 import * as storage from "@/auth/secureStorage";
 import { API_BASE_URL } from "@/config/runtime";
 import { loginSuccess } from "@/features/auth/slice";
+import { useMarketingLayout } from "@/hooks/use-responsive-layout";
 import { useAppDispatch } from "@/store/hooks";
 import { V } from "@/theme/vajra";
+import { IconSymbol } from "components/ui/icon-symbol";
 import { LightningBrandMark } from "components/vajra/LightningBrandMark";
 
 type Step = "welcome" | "profile" | "otp";
@@ -32,6 +34,7 @@ type Step = "welcome" | "profile" | "otp";
 export default function Login() {
   const router = useRouter();
   const dispatch = useAppDispatch();
+  const { pagePad, isCompact, isExpanded } = useMarketingLayout();
   const [step, setStep] = useState<Step>(() =>
     Platform.OS === "web" ? "profile" : "welcome",
   );
@@ -140,10 +143,30 @@ export default function Login() {
     focusedField === field && styles.inputFocused,
   ];
 
+  const handleBack = () => {
+    if (step === "otp") {
+      setStep("profile");
+      setOtp("");
+      setError("");
+      return;
+    }
+    if (Platform.OS === "web") {
+      router.replace("/(auth)/landing");
+    } else {
+      setStep("welcome");
+    }
+  };
+
   if (step === "welcome") {
     return (
       <SafeAreaView style={styles.modeLoginRoot} edges={["top", "bottom", "left", "right"]}>
-        <View style={styles.loginColumn}>
+        <View
+          style={[
+            styles.loginColumn,
+            styles.loginColumnWelcome,
+            { paddingHorizontal: pagePad },
+          ]}
+        >
           <LightningBrandMark />
           <Text style={styles.brand}>Vajra Volt</Text>
           <Text style={styles.tagline}>CHARGING</Text>
@@ -162,15 +185,34 @@ export default function Login() {
 
   return (
     <SafeAreaView style={styles.modeLoginRoot} edges={["top", "bottom", "left", "right"]}>
-    <KeyboardAvoidingView
-      style={styles.fill}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-    >
-      <ScrollView
-        contentContainerStyle={styles.flowScroll}
-        keyboardShouldPersistTaps="handled"
+      <KeyboardAvoidingView
+        style={styles.fill}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        <View style={styles.loginColumn}>
+        <ScrollView
+          contentContainerStyle={[
+            styles.flowScroll,
+            { paddingHorizontal: pagePad },
+            isExpanded && styles.flowScrollExpanded,
+          ]}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View
+            style={[
+              styles.loginColumn,
+              { paddingHorizontal: 0 },
+              isCompact && styles.loginColumnCompact,
+              isExpanded && styles.loginColumnExpanded,
+            ]}
+          >
+            <Pressable
+              style={styles.backBtn}
+              onPress={handleBack}
+              accessibilityRole="button"
+              accessibilityLabel="Go back"
+            >
+              <IconSymbol name="arrow.left" size={18} color={V.headingDeep} />
+            </Pressable>
           {step === "profile" ? (
             <>
               <Text style={styles.screenTitle}>Get started</Text>
@@ -269,9 +311,9 @@ export default function Login() {
               )}
             </Pressable>
           )}
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -284,6 +326,18 @@ const styles = StyleSheet.create({
   fill: {
     flex: 1,
   },
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: V.borderNavy,
+    backgroundColor: V.pageBg,
+    alignItems: "center",
+    justifyContent: "center",
+    alignSelf: "flex-start",
+    marginBottom: 20,
+  },
   loginColumn: {
     flex: 1,
     width: "100%",
@@ -291,12 +345,27 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     paddingHorizontal: 24,
     justifyContent: "center",
-    alignItems: "center",
+    alignItems: "stretch",
+  },
+  loginColumnCompact: {
+    maxWidth: "100%",
+  },
+  loginColumnExpanded: {
+    maxWidth: 440,
   },
   flowScroll: {
     flexGrow: 1,
+    alignItems: "center",
+    paddingTop: 16,
+    paddingBottom: 24,
+  },
+  flowScrollExpanded: {
+    paddingTop: 32,
+    paddingBottom: 40,
+  },
+  loginColumnWelcome: {
+    alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 24,
   },
   brand: {
     marginTop: 20,

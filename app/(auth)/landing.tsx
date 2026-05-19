@@ -3,19 +3,11 @@
  * (canonical until PNGs exist in design-screenshots).
  */
 import { useRouter } from "expo-router";
-import { BlurView } from "expo-blur";
-import {
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  useWindowDimensions,
-  View,
-} from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { MarketingHeroBolt } from "components/vajra/LightningBrandMark";
+import { useMarketingLayout } from "@/hooks/use-responsive-layout";
 import { V } from "@/theme/vajra";
 import { IconSymbol } from "components/ui/icon-symbol";
 
@@ -44,11 +36,23 @@ function StepCard({
   );
 }
 
-function StatItem({ value, label }: { value: string; label: string }) {
+function StatItem({
+  value,
+  label,
+  compact,
+}: {
+  value: string;
+  label: string;
+  compact?: boolean;
+}) {
   return (
     <View style={styles.statItem}>
-      <Text style={styles.statValue}>{value}</Text>
-      <Text style={styles.statLabel}>{label}</Text>
+      <Text style={[styles.statValue, compact && styles.statValueCompact]}>
+        {value}
+      </Text>
+      <Text style={[styles.statLabel, compact && styles.statLabelCompact]}>
+        {label}
+      </Text>
     </View>
   );
 }
@@ -61,13 +65,28 @@ const STATS = [
 
 export default function LandingScreen() {
   const router = useRouter();
-  const { width } = useWindowDimensions();
+  const {
+    width,
+    isCompact,
+    isMedium,
+    isExpanded,
+    isDesktopWeb,
+    pagePad,
+    showHeaderNav,
+  } = useMarketingLayout();
   const contentW = Math.min(width, V.marketingMax);
 
   const HeaderInner = (
-    <View style={[styles.headerInner, { maxWidth: V.marketingMax }]}>
+    <View
+      style={[
+        styles.headerInner,
+        isCompact && styles.headerInnerCompact,
+        isExpanded && styles.headerInnerExpanded,
+        { maxWidth: V.marketingMax, paddingHorizontal: pagePad },
+      ]}
+    >
       <Pressable
-        style={styles.logoPress}
+        style={[styles.logoPress, isCompact && styles.logoPressCompact]}
         onPress={() => router.replace("/(auth)/landing")}
       >
         <View style={styles.logoCircle32}>
@@ -79,15 +98,22 @@ export default function LandingScreen() {
         </View>
       </Pressable>
 
-      <View style={styles.headerRight}>
-        <Pressable onPress={() => router.push("/(auth)/charging-guide")}>
-          <Text style={styles.navLink}>How to Charge</Text>
-        </Pressable>
-        <Pressable onPress={() => router.push("/(auth)/login")}>
-          <Text style={styles.navLink}>Log in</Text>
-        </Pressable>
+      <View style={[styles.headerRight, isCompact && styles.headerRightCompact]}>
+        {showHeaderNav ? (
+          <>
+            <Pressable onPress={() => router.push("/(auth)/charging-guide")}>
+              <Text style={styles.navLink}>How to Charge</Text>
+            </Pressable>
+            <Pressable onPress={() => router.push("/(auth)/login")}>
+              <Text style={styles.navLink}>Log in</Text>
+            </Pressable>
+          </>
+        ) : null}
         <Pressable
-          style={styles.getStartedPill}
+          style={[
+            styles.getStartedPill,
+            isCompact && styles.getStartedPillCompact,
+          ]}
           onPress={() => router.push("/(auth)/login")}
         >
           <Text style={styles.getStartedText}>Get Started</Text>
@@ -104,38 +130,70 @@ export default function LandingScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollRoot}
       >
-        {Platform.OS === "web" ? (
-          <View style={[styles.stickyHeader, styles.stickyHeaderSolid]}>
-            {HeaderInner}
-          </View>
-        ) : (
-          <BlurView intensity={28} tint="light" style={styles.stickyHeader}>
-            {HeaderInner}
-          </BlurView>
-        )}
+        <View
+          style={[
+            styles.stickyHeader,
+            isDesktopWeb && styles.stickyHeaderDesktopWeb,
+          ]}
+        >
+          {HeaderInner}
+        </View>
 
         <View
           style={[
             styles.column,
-            { width: contentW, maxWidth: V.marketingMax },
+            { width: contentW, maxWidth: V.marketingMax, paddingHorizontal: pagePad },
+            isDesktopWeb && styles.columnDesktopWeb,
           ]}
         >
           {/* Hero — web order (no eyebrow above ring) */}
-          <View style={styles.hero}>
-            <View style={styles.heroMark}>
+          <View
+            style={[
+              styles.hero,
+              isCompact && styles.heroCompact,
+              isExpanded && styles.heroExpanded,
+            ]}
+          >
+            <View
+              style={[
+                styles.heroMark,
+                isCompact && styles.heroMarkCompact,
+                isExpanded && styles.heroMarkExpanded,
+              ]}
+            >
               <MarketingHeroBolt />
             </View>
-            <Text style={styles.heroH1}>
+            <Text
+              style={[
+                styles.heroH1,
+                isCompact && styles.heroH1Compact,
+                isMedium && styles.heroH1Medium,
+              ]}
+            >
               <Text style={styles.heroH1Navy}>
                 Smart EV Charging,{"\n"}
               </Text>
               <Text style={styles.heroH1Teal}>Anywhere.</Text>
             </Text>
-            <Text style={styles.heroLead}>
+            <Text
+              style={[
+                styles.heroLead,
+                isCompact && styles.heroLeadCompact,
+                isExpanded && styles.heroLeadExpanded,
+              ]}
+            >
               Find, verify, and start charging your EV in seconds. Vajra Volt
               makes EV charging as easy as scanning a QR code.
             </Text>
-            <View style={styles.heroCtas}>
+            <View
+              style={[
+                styles.heroCtas,
+                isCompact && styles.heroCtasCompact,
+                !isCompact && styles.heroCtasCentered,
+                isExpanded && styles.heroCtasExpanded,
+                isDesktopWeb && styles.heroCtasDesktopWeb,
+              ]}
+            >
               <Pressable
                 style={styles.primaryBtn}
                 onPress={() => router.push("/(auth)/login")}
@@ -153,13 +211,17 @@ export default function LandingScreen() {
           </View>
 
           {/* Stats banner */}
-          <View style={styles.statsBanner}>
+          <View style={[styles.statsBanner, isCompact && styles.statsBannerCompact]}>
             {STATS.map((s, i) => (
               <View
                 key={s.label}
                 style={[styles.statColumn, i > 0 && styles.statColumnBorder]}
               >
-                <StatItem value={s.value} label={s.label} />
+                <StatItem
+                  value={s.value}
+                  label={s.label}
+                  compact={isCompact}
+                />
               </View>
             ))}
           </View>
@@ -245,7 +307,7 @@ export default function LandingScreen() {
           </View>
 
           {/* Footer */}
-          <View style={styles.footer}>
+          <View style={[styles.footer, { marginHorizontal: -pagePad, paddingHorizontal: pagePad }]}>
             <View style={styles.footerRow}>
               <View style={styles.footerBrand}>
                 <View style={styles.footerLogo}>
@@ -257,14 +319,6 @@ export default function LandingScreen() {
                 © {new Date().getFullYear()} Vajra Volt. All rights reserved.
               </Text>
             </View>
-            <View style={styles.footerLinks}>
-              <Pressable onPress={() => router.push("/(auth)/charging-guide")}>
-                <Text style={styles.footerLink}>How to Charge</Text>
-              </Pressable>
-              <Pressable onPress={() => router.push("/(auth)/login")}>
-                <Text style={styles.footerLink}>Log In</Text>
-              </Pressable>
-            </View>
           </View>
         </View>
       </ScrollView>
@@ -274,27 +328,44 @@ export default function LandingScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: V.pageBg },
-  scrollRoot: { paddingBottom: 40 },
+  scrollRoot: { paddingBottom: 40, width: "100%" },
   stickyHeader: {
+    zIndex: 10,
+    elevation: 8,
+    backgroundColor: V.card,
     borderBottomWidth: 1,
     borderBottomColor: V.borderNavy,
     overflow: "hidden",
+    width: "100%",
+    alignSelf: "stretch",
   },
-  stickyHeaderSolid: {
-    backgroundColor: "rgba(255, 255, 255, 0.92)",
+  stickyHeaderDesktopWeb: {
+    alignItems: "center",
+  },
+  columnDesktopWeb: {
+    alignSelf: "center",
   },
   headerInner: {
     flexDirection: "row",
     flexWrap: "wrap",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 10,
-    paddingVertical: 14,
-    paddingHorizontal: 20,
+    gap: 12,
+    paddingVertical: 16,
     width: "100%",
     alignSelf: "center",
   },
+  headerInnerCompact: {
+    flexWrap: "nowrap",
+    paddingVertical: 14,
+    gap: 8,
+  },
+  headerInnerExpanded: {
+    paddingVertical: 18,
+    gap: 16,
+  },
   logoPress: { flexDirection: "row", alignItems: "center", gap: 10 },
+  logoPressCompact: { flex: 1, minWidth: 0, flexShrink: 1 },
   logoCircle32: {
     width: 32,
     height: 32,
@@ -319,7 +390,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     alignItems: "center",
-    gap: 10,
+    gap: 12,
+  },
+  headerRightCompact: {
+    flexWrap: "nowrap",
+    flexShrink: 0,
   },
   navLink: {
     fontSize: 14,
@@ -335,40 +410,83 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: V.radiusPill,
   },
+  getStartedPillCompact: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
   getStartedText: {
     fontSize: 14,
     fontWeight: "700",
     color: V.card,
   },
   chev: { fontSize: 16, fontWeight: "800", color: V.card, marginTop: -2 },
-  column: { alignSelf: "center", paddingHorizontal: 20 },
-  hero: { paddingTop: 36, paddingBottom: 24, alignItems: "center" },
-  heroMark: { marginBottom: 24 },
+  column: { alignSelf: "center" },
+  hero: { paddingTop: 40, paddingBottom: 32, alignItems: "center" },
+  heroCompact: { paddingTop: 28, paddingBottom: 28 },
+  heroExpanded: { paddingTop: 48, paddingBottom: 40 },
+  heroMark: { marginBottom: 28 },
+  heroMarkCompact: { marginBottom: 32 },
+  heroMarkExpanded: { marginBottom: 36 },
   heroH1: {
     textAlign: "center",
     fontSize: 36,
     lineHeight: 44,
     fontWeight: "800",
   },
+  heroH1Compact: {
+    fontSize: 28,
+    lineHeight: 36,
+  },
+  heroH1Medium: {
+    fontSize: 32,
+    lineHeight: 40,
+  },
   heroH1Navy: { color: V.headingDeep, fontWeight: "800" },
   heroH1Teal: { color: V.primary, fontWeight: "800" },
   heroLead: {
-    marginTop: 16,
+    marginTop: 20,
     textAlign: "center",
     fontSize: 16,
-    lineHeight: 24,
+    lineHeight: 26,
     fontWeight: "600",
     color: V.bodySecondary,
     maxWidth: 420,
-    paddingHorizontal: 8,
+  },
+  heroLeadCompact: {
+    marginTop: 18,
+    fontSize: 15,
+    lineHeight: 24,
+    maxWidth: 340,
+  },
+  heroLeadExpanded: {
+    marginTop: 24,
+    fontSize: 17,
+    lineHeight: 28,
+    maxWidth: 520,
   },
   heroCtas: {
-    marginTop: 24,
-    alignSelf: "center",
-    width: "88%",
-    maxWidth: 300,
-    gap: 12,
+    marginTop: 28,
+    width: "100%",
+    maxWidth: 320,
+    gap: 14,
     alignItems: "stretch",
+  },
+  heroCtasCentered: {
+    alignSelf: "center",
+  },
+  heroCtasCompact: {
+    marginTop: 24,
+    alignSelf: "stretch",
+    maxWidth: "100%",
+    gap: 12,
+  },
+  heroCtasExpanded: {
+    marginTop: 32,
+    maxWidth: 360,
+    gap: 16,
+  },
+  heroCtasDesktopWeb: {
+    maxWidth: 400,
   },
   primaryBtn: {
     flexDirection: "row",
@@ -411,9 +529,15 @@ const styles = StyleSheet.create({
     justifyContent: "space-around",
     borderRadius: V.radiusStats,
     paddingVertical: 28,
-    marginBottom: 36,
+    paddingHorizontal: 8,
+    marginBottom: 40,
     backgroundColor: V.primary,
     overflow: "hidden",
+  },
+  statsBannerCompact: {
+    paddingVertical: 22,
+    paddingHorizontal: 4,
+    marginBottom: 36,
   },
   statColumn: {
     flex: 1,
@@ -430,6 +554,9 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: V.card,
   },
+  statValueCompact: {
+    fontSize: 24,
+  },
   statLabel: {
     marginTop: 6,
     fontSize: 11,
@@ -438,6 +565,11 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
     color: "rgba(255,255,255,0.78)",
     textAlign: "center",
+  },
+  statLabelCompact: {
+    marginTop: 4,
+    fontSize: 9,
+    letterSpacing: 1,
   },
   howHeader: { alignItems: "center", marginBottom: 28 },
   eyebrowPrimary: {
@@ -586,9 +718,7 @@ const styles = StyleSheet.create({
     backgroundColor: V.card,
     borderTopWidth: 1,
     borderTopColor: V.borderNavy,
-    paddingVertical: 22,
-    paddingHorizontal: 20,
-    marginHorizontal: -20,
+    paddingVertical: 24,
   },
   footerRow: { gap: 12, marginBottom: 14 },
   footerBrand: { flexDirection: "row", alignItems: "center", gap: 8 },
@@ -610,6 +740,4 @@ const styles = StyleSheet.create({
     color: V.label,
     marginTop: 4,
   },
-  footerLinks: { flexDirection: "row", gap: 20 },
-  footerLink: { fontSize: 12, fontWeight: "600", color: V.bodySecondary },
 });

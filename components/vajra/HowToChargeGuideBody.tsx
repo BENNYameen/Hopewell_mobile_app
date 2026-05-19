@@ -5,6 +5,7 @@ import {
   HOW_TO_CHARGE_TABS,
   type GuideTabId,
 } from "@/content/howToChargeGuide";
+import { useMarketingLayout } from "@/hooks/use-responsive-layout";
 import { V } from "@/theme/vajra";
 import type { IconName } from "components/ui/icon-names";
 import { IconSymbol } from "components/ui/icon-symbol";
@@ -18,16 +19,21 @@ const TAB_ICONS: Record<GuideTabId, IconName> = {
 
 type Props = {
   variant: "marketing" | "app";
-  /** Web marketing: wide column, centered hero, icon tabs, desktop tab row */
-  layoutWide?: boolean;
   bottomHint?: string;
 };
 
 export function HowToChargeGuideBody({
   variant,
-  layoutWide = false,
   bottomHint,
 }: Props) {
+  const {
+    isCompact,
+    isMedium,
+    isExpanded,
+    isDesktopWeb,
+    layoutWide,
+    marketingNarrow,
+  } = useMarketingLayout();
   const [activeTab, setActiveTab] = useState<GuideTabId>("web");
   const current = useMemo(
     () => HOW_TO_CHARGE_TABS.find((t) => t.id === activeTab)!,
@@ -35,20 +41,65 @@ export function HowToChargeGuideBody({
   );
 
   const wide = layoutWide && variant === "marketing";
-  const titleSize = wide ? 34 : variant === "marketing" ? 28 : 22;
+  const compact = marketingNarrow && variant === "marketing" && isCompact;
+  const titleSize = wide
+    ? isExpanded
+      ? 34
+      : 30
+    : compact
+      ? 26
+      : variant === "marketing"
+        ? 28
+        : 22;
 
   return (
-    <View>
-      <Text style={[styles.kicker, wide && styles.kickerWide]}>Guide</Text>
-      <Text style={[styles.title, { fontSize: titleSize }, wide && styles.titleWide]}>
+    <View
+      style={[
+        wide && variant === "marketing" && styles.rootWide,
+        isDesktopWeb && variant === "marketing" && styles.rootDesktopWeb,
+      ]}
+    >
+      <Text
+        style={[
+          styles.kicker,
+          wide && styles.kickerWide,
+          compact && styles.kickerCompact,
+          isExpanded && wide && styles.kickerExpanded,
+        ]}
+      >
+        Guide
+      </Text>
+      <Text
+        style={[
+          styles.title,
+          { fontSize: titleSize },
+          wide && styles.titleWide,
+          compact && styles.titleCompact,
+          isMedium && variant === "marketing" && styles.titleMedium,
+        ]}
+      >
         How to Charge
       </Text>
-      <Text style={[styles.subtitle, wide && styles.subtitleWide]}>
+      <Text
+        style={[
+          styles.subtitle,
+          wide && styles.subtitleWide,
+          compact && styles.subtitleCompact,
+          isMedium && variant === "marketing" && !wide && styles.subtitleMedium,
+        ]}
+      >
         Choose your preferred charging method below and follow the step-by-step
         guide.
       </Text>
 
-      <View style={[styles.tabBar, wide && styles.tabBarWide]}>
+      <View
+        style={[
+          styles.tabBar,
+          wide && styles.tabBarWide,
+          marketingNarrow && variant === "marketing" && styles.tabBarNarrow,
+          compact && styles.tabBarCompact,
+        ]}
+      >
         {HOW_TO_CHARGE_TABS.map((tab) => {
           const on = tab.id === activeTab;
           return (
@@ -57,7 +108,11 @@ export function HowToChargeGuideBody({
               onPress={() => setActiveTab(tab.id)}
               style={[
                 styles.tab,
-                wide ? styles.tabWide : styles.tabCompact,
+                wide
+                  ? styles.tabWide
+                  : marketingNarrow && variant === "marketing"
+                    ? styles.tabGridItem
+                    : styles.tabCompact,
                 on ? styles.tabActive : wide ? styles.tabInactiveWide : null,
               ]}
             >
@@ -74,9 +129,14 @@ export function HowToChargeGuideBody({
                 style={[
                   styles.tabLabel,
                   wide && styles.tabLabelWide,
+                  marketingNarrow &&
+                    variant === "marketing" &&
+                    styles.tabLabelCompact,
                   on ? styles.tabLabelActive : wide ? styles.tabLabelMuted : undefined,
                 ]}
-                numberOfLines={1}
+                numberOfLines={
+                  marketingNarrow && variant === "marketing" ? 2 : 1
+                }
               >
                 {tab.label}
               </Text>
@@ -85,8 +145,10 @@ export function HowToChargeGuideBody({
         })}
       </View>
 
-      <View style={[styles.panel, wide && styles.panelWide]}>
-        <View style={styles.panelTitleRow}>
+      <View
+        style={[styles.panel, wide && styles.panelWide, compact && styles.panelCompact]}
+      >
+        <View style={[styles.panelTitleRow, compact && styles.panelTitleRowCompact]}>
           {wide ? (
             <IconSymbol
               name={TAB_ICONS[current.id]}
@@ -103,7 +165,10 @@ export function HowToChargeGuideBody({
 
         <View style={styles.steps}>
           {current.steps.map((step, i) => (
-            <View key={`${current.id}-${i}`} style={styles.stepRow}>
+            <View
+              key={`${current.id}-${i}`}
+              style={[styles.stepRow, compact && styles.stepRowCompact]}
+            >
               <View style={styles.stepRail}>
                 <View style={[styles.stepCircle, wide && styles.stepCircleWide]}>
                   <Text style={[styles.stepNum, wide && styles.stepNumWide]}>
@@ -114,7 +179,13 @@ export function HowToChargeGuideBody({
                   <View style={[styles.stepDash, wide && styles.stepDashWide]} />
                 ) : null}
               </View>
-              <View style={[styles.stepBody, wide && styles.stepBodyWide]}>
+              <View
+                style={[
+                  styles.stepBody,
+                  wide && styles.stepBodyWide,
+                  compact && styles.stepBodyCompact,
+                ]}
+              >
                 <Text style={[styles.stepTitle, wide && styles.stepTitleWide]}>
                   {step.title}
                 </Text>
@@ -144,13 +215,27 @@ export function HowToChargeGuideBody({
 }
 
 const styles = StyleSheet.create({
+  rootWide: {
+    width: "100%",
+    alignSelf: "center",
+  },
+  rootDesktopWeb: {
+    width: "100%",
+    maxWidth: 960,
+  },
   kicker: {
     fontSize: 11,
     fontWeight: "700",
     letterSpacing: 2,
     color: V.primary,
     textTransform: "uppercase",
-    marginBottom: 6,
+    marginBottom: 8,
+  },
+  kickerCompact: {
+    marginBottom: 10,
+  },
+  kickerExpanded: {
+    marginBottom: 12,
   },
   kickerWide: {
     textAlign: "center",
@@ -161,7 +246,14 @@ const styles = StyleSheet.create({
   title: {
     fontWeight: "800",
     color: V.headingDeep,
-    marginBottom: 8,
+    marginBottom: 10,
+  },
+  titleCompact: {
+    marginBottom: 12,
+  },
+  titleMedium: {
+    fontSize: 30,
+    marginBottom: 12,
   },
   titleWide: {
     textAlign: "center",
@@ -170,8 +262,16 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
     color: V.bodySecondary,
-    lineHeight: 21,
-    marginBottom: 18,
+    lineHeight: 22,
+    marginBottom: 22,
+  },
+  subtitleCompact: {
+    fontSize: 15,
+    lineHeight: 24,
+    marginBottom: 24,
+  },
+  subtitleMedium: {
+    marginBottom: 26,
   },
   subtitleWide: {
     textAlign: "center",
@@ -183,19 +283,31 @@ const styles = StyleSheet.create({
   },
   tabBar: {
     flexDirection: "row",
-    marginBottom: 18,
-    padding: 6,
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 22,
+    padding: 8,
     borderRadius: 16,
     backgroundColor: V.card,
     borderWidth: 1,
     borderColor: V.borderHairline,
     ...V.shadowFeature,
   },
+  tabBarNarrow: {
+    marginBottom: 24,
+    padding: 10,
+    gap: 10,
+  },
+  tabBarCompact: {
+    marginBottom: 26,
+  },
   tabBarWide: {
     flexWrap: "nowrap",
     padding: 8,
     gap: 0,
     marginBottom: 24,
+    width: "100%",
+    alignSelf: "center",
   },
   tab: {
     alignItems: "center",
@@ -207,7 +319,16 @@ const styles = StyleSheet.create({
   },
   tabCompact: {
     flexGrow: 1,
-    flexBasis: "45%",
+    flexBasis: "22%",
+    minWidth: 72,
+  },
+  tabGridItem: {
+    flexGrow: 0,
+    flexBasis: "47%",
+    maxWidth: "47%",
+    minWidth: 0,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
   },
   tabWide: {
     flex: 1,
@@ -234,6 +355,11 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
     textAlign: "center",
   },
+  tabLabelCompact: {
+    fontSize: 11,
+    letterSpacing: 0.5,
+    lineHeight: 14,
+  },
   tabLabelWide: {
     fontSize: 11,
     letterSpacing: 0.8,
@@ -247,23 +373,31 @@ const styles = StyleSheet.create({
   },
   panel: {
     borderRadius: V.radiusCard,
-    padding: V.appPadH,
+    padding: 20,
     backgroundColor: V.card,
     borderWidth: 1,
     borderColor: V.borderStepCard,
     ...V.shadowCard,
     marginBottom: 16,
   },
+  panelCompact: {
+    padding: 22,
+  },
   panelWide: {
     paddingVertical: 28,
     paddingHorizontal: 28,
+    width: "100%",
+    alignSelf: "center",
   },
   panelTitleRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    marginBottom: 18,
+    marginBottom: 20,
     flexWrap: "wrap",
+  },
+  panelTitleRowCompact: {
+    marginBottom: 22,
   },
   panelEmoji: { fontSize: 18 },
   panelTitle: {
@@ -277,6 +411,9 @@ const styles = StyleSheet.create({
   },
   steps: {},
   stepRow: { flexDirection: "row" },
+  stepRowCompact: {
+    marginBottom: 2,
+  },
   stepRail: { width: 36, alignItems: "center" },
   stepCircle: {
     width: 28,
@@ -302,7 +439,11 @@ const styles = StyleSheet.create({
   stepDashWide: {
     minHeight: 28,
   },
-  stepBody: { flex: 1, paddingLeft: 12, paddingBottom: 18 },
+  stepBody: { flex: 1, paddingLeft: 12, paddingBottom: 22 },
+  stepBodyCompact: {
+    paddingLeft: 14,
+    paddingBottom: 24,
+  },
   stepBodyWide: {
     paddingLeft: 16,
     paddingBottom: 22,

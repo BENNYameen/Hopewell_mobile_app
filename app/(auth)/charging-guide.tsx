@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { useMarketingLayout } from "@/hooks/use-responsive-layout";
 import { V } from "@/theme/vajra";
 import { HowToChargeGuideBody } from "components/vajra/HowToChargeGuideBody";
 import { IconSymbol } from "components/ui/icon-symbol";
@@ -16,12 +17,27 @@ import { IconSymbol } from "components/ui/icon-symbol";
 export default function ChargingGuidePublic() {
   const router = useRouter();
   const isWeb = Platform.OS === "web";
+  const {
+    isCompact,
+    isMedium,
+    isExpanded,
+    isDesktopWeb,
+    layoutWide,
+    pagePad,
+  } = useMarketingLayout();
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
       {isWeb ? (
         <View style={styles.webHeaderOuter}>
-          <View style={styles.webHeaderInner}>
+          <View
+            style={[
+              styles.webHeaderInner,
+              isCompact && styles.webHeaderInnerCompact,
+              isExpanded && styles.webHeaderInnerExpanded,
+              { paddingHorizontal: pagePad },
+            ]}
+          >
             <Pressable
               style={styles.webBrand}
               onPress={() => router.replace("/(auth)/landing")}
@@ -32,7 +48,7 @@ export default function ChargingGuidePublic() {
               <Text style={styles.wordmark}>Vajra Volt</Text>
             </Pressable>
             <Pressable
-              style={styles.getStartedPill}
+              style={[styles.getStartedPill, isCompact && styles.getStartedPillCompact]}
               onPress={() => router.push("/(auth)/login")}
             >
               <Text style={styles.getStartedText}>Get Started</Text>
@@ -45,25 +61,39 @@ export default function ChargingGuidePublic() {
       <ScrollView
         contentContainerStyle={[
           styles.scroll,
-          isWeb && styles.scrollWeb,
+          { paddingHorizontal: pagePad },
+          isWeb && isMedium && styles.scrollWebMedium,
+          isWeb && isExpanded && styles.scrollWebExpanded,
+          isWeb && isCompact && styles.scrollWebCompact,
+          isDesktopWeb && styles.scrollDesktopWeb,
         ]}
       >
-        {!isWeb ? (
+        <View
+          style={[
+            layoutWide && styles.webContentShell,
+            isExpanded && styles.webContentShellExpanded,
+            isDesktopWeb && styles.webContentShellDesktop,
+          ]}
+        >
           <Pressable
             style={styles.backBtn}
             onPress={() => router.replace("/(auth)/landing")}
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
           >
             <IconSymbol name="arrow.left" size={18} color={V.headingDeep} />
           </Pressable>
-        ) : null}
+          <HowToChargeGuideBody variant="marketing" />
 
-        <View style={isWeb ? styles.webContentShell : undefined}>
-          <HowToChargeGuideBody variant="marketing" layoutWide={isWeb} />
-
-          <View style={styles.ctaBlock}>
+          <View
+            style={[
+              styles.ctaBlock,
+              isDesktopWeb && styles.ctaBlockDesktopWeb,
+            ]}
+          >
             <Text style={styles.readyText}>Ready to give it a try?</Text>
             <Pressable
-              style={styles.cta}
+              style={[styles.cta, isDesktopWeb && styles.ctaDesktopWeb]}
               onPress={() => router.push("/(auth)/login")}
             >
               <Text style={styles.ctaText}>Start Charging Now</Text>
@@ -83,6 +113,7 @@ const styles = StyleSheet.create({
     backgroundColor: V.card,
     borderBottomWidth: 1,
     borderBottomColor: V.borderHairline,
+    alignItems: "center",
   },
   webHeaderInner: {
     maxWidth: 1120,
@@ -91,13 +122,22 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 28,
     paddingVertical: 16,
+    gap: 12,
+  },
+  webHeaderInnerCompact: {
+    paddingVertical: 14,
+  },
+  webHeaderInnerExpanded: {
+    paddingVertical: 18,
   },
   webBrand: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
+    flex: 1,
+    minWidth: 0,
+    flexShrink: 1,
   },
   logoCircle: {
     width: 32,
@@ -120,6 +160,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 9,
     borderRadius: V.radiusPill,
+    flexShrink: 0,
+  },
+  getStartedPillCompact: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
   },
   getStartedText: {
     fontSize: 13,
@@ -128,16 +173,34 @@ const styles = StyleSheet.create({
   },
   chev: { fontSize: 16, fontWeight: "800", color: V.card, marginTop: -2 },
 
-  scroll: { paddingHorizontal: 20, paddingBottom: 48 },
-  scrollWeb: {
-    paddingHorizontal: 28,
-    paddingTop: 28,
-    paddingBottom: 64,
+  scroll: { paddingBottom: 48, paddingTop: 8 },
+  scrollWebCompact: {
+    paddingTop: 16,
+    paddingBottom: 48,
+  },
+  scrollWebMedium: {
+    paddingTop: 24,
+    paddingBottom: 56,
+  },
+  scrollWebExpanded: {
+    paddingTop: 32,
+    paddingBottom: 72,
+  },
+  scrollDesktopWeb: {
+    alignItems: "center",
+    width: "100%",
   },
   webContentShell: {
     maxWidth: 920,
     width: "100%",
     alignSelf: "center",
+  },
+  webContentShellExpanded: {
+    maxWidth: 960,
+  },
+  webContentShellDesktop: {
+    width: "100%",
+    maxWidth: 960,
   },
   backBtn: {
     width: 36,
@@ -148,13 +211,18 @@ const styles = StyleSheet.create({
     backgroundColor: V.card,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 16,
-    marginTop: 4,
+    marginBottom: 20,
+    alignSelf: "flex-start",
   },
   ctaBlock: {
-    marginTop: 28,
+    marginTop: 32,
     alignItems: "center",
-    gap: 14,
+    gap: 16,
+    width: "100%",
+  },
+  ctaBlockDesktopWeb: {
+    maxWidth: 400,
+    alignSelf: "center",
   },
   readyText: {
     fontSize: 15,
@@ -167,13 +235,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    alignSelf: "stretch",
+    alignSelf: "center",
+    width: "100%",
     maxWidth: 400,
     backgroundColor: V.primary,
     borderRadius: V.radiusPill,
     paddingVertical: 15,
     paddingHorizontal: 24,
     ...V.shadowCard,
+  },
+  ctaDesktopWeb: {
+    alignSelf: "center",
   },
   ctaText: {
     fontSize: 15,
