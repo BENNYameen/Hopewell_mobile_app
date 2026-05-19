@@ -1,7 +1,9 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
+  Modal,
+  Platform,
   Pressable,
   RefreshControl,
   StyleSheet,
@@ -17,7 +19,7 @@ import {
 } from "@/charging/charging.api";
 import { useChargingSocket } from "@/charging/charging.socket";
 import { isSessionLive, sessionStatusLabel } from "@/charging/sessionStatus";
-import { confirmAction } from "@/utils/confirmAction";
+import { confirmAction, showAlert } from "@/utils/confirmAction";
 import { V } from "@/theme/vajra";
 import { IconSymbol } from "components/ui/icon-symbol";
 
@@ -78,6 +80,7 @@ export default function SessionDetails() {
   );
   const [stopCharging, { isLoading: isStopping, error: stopError }] =
     useStopChargingMutation();
+  const [showStopConfirm, setShowStopConfirm] = useState(false);
   const liveEnergy = liveData?.energy_kwh ?? session?.energy_kwh;
   const liveCost = liveData?.cost ?? session?.cost;
   const liveStatus = liveData?.status ?? session?.status ?? "";
@@ -147,6 +150,10 @@ export default function SessionDetails() {
 
   const confirmStopCharging = async () => {
     if (!sessionId) return;
+    if (Platform.OS === "web") {
+      setShowStopConfirm(true);
+      return;
+    }
     const confirmed = await confirmAction(
       "Stop charging",
       "Are you sure you want to stop this session?",
@@ -158,6 +165,18 @@ export default function SessionDetails() {
       refetch();
     } catch {
       // error message handled inline via stopErrorMessage
+    }
+  };
+
+  const handleConfirmStop = async () => {
+    if (!sessionId) return;
+    try {
+      await stopCharging({ session_id: sessionId }).unwrap();
+      setShowStopConfirm(false);
+      refetch();
+    } catch {
+      setShowStopConfirm(false);
+      showAlert("Could not stop", "Try again or finish from the charger.");
     }
   };
 
@@ -206,6 +225,7 @@ export default function SessionDetails() {
   }
 
   return (
+    <>
     <TabScreen
       refreshControl={
         <RefreshControl refreshing={isFetching} onRefresh={refetch} />
@@ -326,6 +346,43 @@ export default function SessionDetails() {
         </View>
       ) : null}
     </TabScreen>
+    <Modal
+      visible={Platform.OS === "web" && showStopConfirm}
+      transparent
+      animationType="fade"
+      onRequestClose={() => setShowStopConfirm(false)}
+    >
+      <Pressable
+        style={styles.confirmBackdrop}
+        onPress={() => setShowStopConfirm(false)}
+      >
+        <Pressable style={styles.confirmCard} onPress={() => null}>
+          <Text style={styles.confirmTitle}>Stop charging</Text>
+          <Text style={styles.confirmText}>
+            Are you sure you want to stop this session?
+          </Text>
+          <View style={styles.confirmActions}>
+            <Pressable
+              style={styles.confirmCancel}
+              onPress={() => setShowStopConfirm(false)}
+              disabled={isStopping}
+            >
+              <Text style={styles.confirmCancelText}>Cancel</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.confirmStop, isStopping && styles.primaryBtnDisabled]}
+              disabled={isStopping}
+              onPress={handleConfirmStop}
+            >
+              <Text style={styles.confirmStopText}>
+                {isStopping ? "Stopping..." : "Stop"}
+              </Text>
+            </Pressable>
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
+    </>
   );
 }
 
@@ -510,5 +567,62 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
     color: V.error,
+  },
+  confirmBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(11, 18, 39, 0.45)",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 20,
+  },
+  confirmCard: {
+    width: "100%",
+    maxWidth: 420,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: V.borderNavy,
+    backgroundColor: V.card,
+    padding: 18,
+  },
+  confirmTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: V.headingDeep,
+  },
+  confirmText: {
+    marginTop: 10,
+    fontSize: 14,
+    fontWeight: "500",
+    color: V.bodySecondary,
+  },
+  confirmActions: {
+    marginTop: 18,
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: 10,
+  },
+  confirmCancel: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: V.borderNavy,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: "#F5F7FB",
+  },
+  confirmCancelText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: V.headingDeep,
+  },
+  confirmStop: {
+    borderRadius: 12,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    backgroundColor: V.error,
+  },
+  confirmStopText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: V.card,
   },
 });

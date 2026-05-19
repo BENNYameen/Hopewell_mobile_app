@@ -4,10 +4,11 @@
  */
 import { useRouter } from "expo-router";
 import Constants from "expo-constants";
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Image,
+  Modal,
   Platform,
   Pressable,
   RefreshControl,
@@ -90,6 +91,7 @@ export default function HomeDashboard() {
     pollingInterval: 15_000,
   });
   const [stopCharging, { isLoading: stopping }] = useStopChargingMutation();
+  const [showStopConfirm, setShowStopConfirm] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -181,6 +183,10 @@ export default function HomeDashboard() {
 
   const onStopCharging = async () => {
     if (!liveSession || !canStopSession) return;
+    if (Platform.OS === "web") {
+      setShowStopConfirm(true);
+      return;
+    }
     const confirmed = await confirmAction(
       "Stop charging?",
       "End this session from the app?",
@@ -191,10 +197,19 @@ export default function HomeDashboard() {
       await stopCharging({ session_id: liveSession.id }).unwrap();
       refetchActive();
     } catch {
-      showAlert(
-        "Could not stop",
-        "Try again or finish from the charger.",
-      );
+      showAlert("Could not stop", "Try again or finish from the charger.");
+    }
+  };
+
+  const handleConfirmStop = async () => {
+    if (!liveSession) return;
+    try {
+      await stopCharging({ session_id: liveSession.id }).unwrap();
+      setShowStopConfirm(false);
+      refetchActive();
+    } catch {
+      setShowStopConfirm(false);
+      showAlert("Could not stop", "Try again or finish from the charger.");
     }
   };
 
@@ -212,186 +227,236 @@ export default function HomeDashboard() {
 
   const dashboardBody = (
     <>
-        <Text style={styles.greeting}>{greetingText}</Text>
-        <Text style={styles.subtitle}>
-          {liveSession
-            ? "You have an active charging session."
-            : "No active session right now."}
-        </Text>
+      <Text style={styles.greeting}>{greetingText}</Text>
+      <Text style={styles.subtitle}>
+        {liveSession
+          ? "You have an active charging session."
+          : "No active session right now."}
+      </Text>
 
-        {isLoading ? (
-          <View style={styles.loadingWrap}>
-            <ActivityIndicator size="large" color={V.primary} />
-          </View>
-        ) : null}
+      {isLoading ? (
+        <View style={styles.loadingWrap}>
+          <ActivityIndicator size="large" color={V.primary} />
+        </View>
+      ) : null}
 
-        {hasLoadError ? (
-          <View style={styles.errorBanner}>
-            <Text style={styles.errorBannerText}>
-              Unable to load session status. Try refreshing.
-            </Text>
-          </View>
-        ) : null}
+      {hasLoadError ? (
+        <View style={styles.errorBanner}>
+          <Text style={styles.errorBannerText}>
+            Unable to load session status. Try refreshing.
+          </Text>
+        </View>
+      ) : null}
 
-        {!isLoading && liveSession ? (
-          <View style={styles.liveCard}>
-            <View style={styles.liveHeader}>
-              <View style={styles.liveBadge}>
-                <PulsingLiveDot />
-                <Text style={styles.liveBadgeText}>
-                  {sessionStatusLabel(liveStatus || liveSession.status)}
-                </Text>
-              </View>
-              <View style={styles.liveHeaderRight}>
-                <Text style={styles.liveTime}>
-                  {formatDateTime(liveSession.start_time)}
-                </Text>
-                {isLive ? (
-                  <Text
-                    style={
-                      wsConnected ? styles.syncLiveDot : styles.syncSyncing
-                    }
-                  >
-                    {wsConnected ? "● Live" : "○ Syncing"}
-                  </Text>
-                ) : null}
-              </View>
+      {!isLoading && liveSession ? (
+        <View style={styles.liveCard}>
+          <View style={styles.liveHeader}>
+            <View style={styles.liveBadge}>
+              <PulsingLiveDot />
+              <Text style={styles.liveBadgeText}>
+                {sessionStatusLabel(liveStatus || liveSession.status)}
+              </Text>
             </View>
-            <View style={styles.liveRow}>
-              <View style={styles.chargerIcon}>
-                <IconSymbol name="bolt.fill" size={24} color="#FFFFFF" />
-              </View>
-              <View style={styles.liveMain}>
-                <Text style={styles.liveTitle} numberOfLines={1}>
-                  {wsData?.charger_name ?? liveSession.charger_id}
-                </Text>
-                <Text style={styles.liveMeta}>
-                  Connector {liveSession.connector_id}
-                </Text>
-              </View>
-            </View>
-            <View style={styles.statsStrip}>
-              <View style={styles.statBlock}>
-                <Text style={styles.statLabel}>Energy</Text>
-                <Text style={styles.statValue}>
-                  {energy.toFixed(2)} kWh
-                </Text>
-              </View>
-              <View style={styles.statBlock}>
-                <Text style={styles.statLabel}>Duration</Text>
-                <Text style={styles.statValue}>{dur} min</Text>
-              </View>
-              <View style={styles.statBlock}>
-                <Text style={styles.statLabel}>Cost</Text>
-                <Text style={styles.statValue}>₹{cost.toFixed(2)}</Text>
-              </View>
-            </View>
-            <View style={styles.liveActions}>
-              <Pressable
-                style={styles.btnOutline}
-                onPress={() =>
-                  router.push({
-                    pathname: "/recent/[id]",
-                    params: { id: liveSession.id },
-                  })
-                }
-              >
-                <Text style={styles.btnOutlineText}>View details</Text>
-              </Pressable>
-              {canStopSession ? (
-                <Pressable
-                  style={[styles.btnStop, stopping && styles.btnDisabled]}
-                  onPress={onStopCharging}
-                  disabled={stopping}
+            <View style={styles.liveHeaderRight}>
+              <Text style={styles.liveTime}>
+                {formatDateTime(liveSession.start_time)}
+              </Text>
+              {isLive ? (
+                <Text
+                  style={
+                    wsConnected ? styles.syncLiveDot : styles.syncSyncing
+                  }
                 >
-                  {stopping ? (
-                    <ActivityIndicator color={V.card} size="small" />
-                  ) : (
-                    <Text style={styles.btnStopText}>Stop Charging</Text>
-                  )}
-                </Pressable>
+                  {wsConnected ? "● Live" : "○ Syncing"}
+                </Text>
               ) : null}
             </View>
           </View>
-        ) : null}
-
-        {!isLoading && !liveSession && !hasLoadError ? (
-          <View style={styles.emptyCard}>
-            <View style={styles.emptyIcon}>
-              <IconSymbol name="bolt.fill" size={32} color={V.primary} />
+          <View style={styles.liveRow}>
+            <View style={styles.chargerIcon}>
+              <IconSymbol name="bolt.fill" size={24} color="#FFFFFF" />
             </View>
-            <Text style={styles.emptyTitle}>No active session</Text>
-            <Text style={styles.emptyBody}>
-              Scan the charger QR code or enter the charger ID to begin.
+            <View style={styles.liveMain}>
+              <Text style={styles.liveTitle} numberOfLines={1}>
+                {wsData?.charger_name ?? liveSession.charger_id}
+              </Text>
+              <Text style={styles.liveMeta}>
+                Connector {liveSession.connector_id}
+              </Text>
+            </View>
+          </View>
+          <View style={styles.statsStrip}>
+            <View style={styles.statBlock}>
+              <Text style={styles.statLabel}>Energy</Text>
+              <Text style={styles.statValue}>{energy.toFixed(2)} kWh</Text>
+            </View>
+            <View style={styles.statBlock}>
+              <Text style={styles.statLabel}>Duration</Text>
+              <Text style={styles.statValue}>{dur} min</Text>
+            </View>
+            <View style={styles.statBlock}>
+              <Text style={styles.statLabel}>Cost</Text>
+              <Text style={styles.statValue}>₹{cost.toFixed(2)}</Text>
+            </View>
+          </View>
+          <View style={styles.liveActions}>
+            <Pressable
+              style={styles.btnOutline}
+              onPress={() =>
+                router.push({
+                  pathname: "/recent/[id]",
+                  params: { id: liveSession.id },
+                })
+              }
+            >
+              <Text style={styles.btnOutlineText}>View details</Text>
+            </Pressable>
+            {canStopSession ? (
+              <Pressable
+                style={[styles.btnStop, stopping && styles.btnDisabled]}
+                onPress={onStopCharging}
+                disabled={stopping}
+              >
+                {stopping ? (
+                  <ActivityIndicator color={V.card} size="small" />
+                ) : (
+                  <Text style={styles.btnStopText}>Stop Charging</Text>
+                )}
+              </Pressable>
+            ) : null}
+          </View>
+        </View>
+      ) : null}
+
+      {!isLoading && !liveSession && !hasLoadError ? (
+        <View style={styles.emptyCard}>
+          <View style={styles.emptyIcon}>
+            <IconSymbol name="bolt.fill" size={32} color={V.primary} />
+          </View>
+          <Text style={styles.emptyTitle}>No active session</Text>
+          <Text style={styles.emptyBody}>
+            Scan the charger QR code or enter the charger ID to begin.
+          </Text>
+          <Pressable
+            style={styles.primaryBtn}
+            onPress={() => router.push("/qr")}
+          >
+            <Text style={styles.primaryBtnText}>Start Charging</Text>
+          </Pressable>
+        </View>
+      ) : null}
+
+      {!isLoading ? (
+        <View style={styles.metricsRow}>
+          <Pressable
+            style={styles.metricCard}
+            onPress={() => router.push("/recent")}
+          >
+            <Text style={styles.metricLabel}>History</Text>
+            <Text style={styles.metricValue} numberOfLines={1}>
+              {historySummary}
             </Text>
-            <Pressable
-              style={styles.primaryBtn}
-              onPress={() => router.push("/qr")}
-            >
-              <Text style={styles.primaryBtnText}>Start Charging</Text>
-            </Pressable>
-          </View>
-        ) : null}
+          </Pressable>
+          <Pressable
+            style={styles.metricCard}
+            onPress={() => router.push("/profile/wallet")}
+          >
+            <Text style={styles.metricLabel}>Wallet</Text>
+            <Text style={styles.metricValue} numberOfLines={1}>
+              {walletSummary}
+            </Text>
+          </Pressable>
+        </View>
+      ) : null}
 
-        {!isLoading ? (
-          <View style={styles.metricsRow}>
-            <Pressable
-              style={styles.metricCard}
-              onPress={() => router.push("/recent")}
-            >
-              <Text style={styles.metricLabel}>History</Text>
-              <Text style={styles.metricValue} numberOfLines={1}>
-                {historySummary}
-              </Text>
-            </Pressable>
-            <Pressable
-              style={styles.metricCard}
-              onPress={() => router.push("/profile/wallet")}
-            >
-              <Text style={styles.metricLabel}>Wallet</Text>
-              <Text style={styles.metricValue} numberOfLines={1}>
-                {walletSummary}
-              </Text>
-            </Pressable>
-          </View>
-        ) : null}
-
-        {Platform.OS !== "web" ? (
-          <View style={styles.mapCard}>
-            <Text style={styles.mapTitle}>Nearby Chargers</Text>
-            {mapPreviewUrl ? (
-              <Image
-                source={{ uri: mapPreviewUrl }}
-                resizeMode="cover"
-                style={styles.mapPreview}
+      <View style={styles.mapCard}>
+        <Text style={styles.mapTitle}>Nearby Chargers</Text>
+        {Platform.OS === "web" ? (
+          <View style={styles.mapPreview}>
+            {webPreviewPoints.map((point) => (
+              <View
+                key={point.id}
+                style={[
+                  styles.webDot,
+                  {
+                    left: `${point.x}%`,
+                    top: `${point.y}%`,
+                    backgroundColor: point.available ? "#21B3A7" : "#E0586A",
+                  },
+                ]}
               />
-            ) : (
-              <View style={styles.mapFallback}>
-                <Text style={styles.mapFallbackText}>
-                  {mappableStations.length === 0
-                    ? "Map preview unavailable. Charger locations are missing."
-                    : "Map preview unavailable. Add Google Maps API key to show it."}
-                </Text>
-              </View>
-            )}
-            <Pressable style={styles.mapCta} onPress={() => router.push("/map")}>
-              <Text style={styles.mapCtaText}>Open Full Map</Text>
-            </Pressable>
+            ))}
           </View>
-        ) : null}
+        ) : mapPreviewUrl ? (
+          <Image
+            source={{ uri: mapPreviewUrl }}
+            resizeMode="cover"
+            style={styles.mapPreview}
+          />
+        ) : (
+          <View style={styles.mapFallback}>
+            <Text style={styles.mapFallbackText}>
+              {mappableStations.length === 0
+                ? "Map preview unavailable. Charger locations are missing."
+                : "Map preview unavailable. Add Google Maps API key to show it."}
+            </Text>
+          </View>
+        )}
+        <Pressable style={styles.mapCta} onPress={() => router.push("/map")}>
+          <Text style={styles.mapCtaText}>Open Full Map</Text>
+        </Pressable>
+      </View>
     </>
   );
 
   return (
-    <TabScreen
-      scroll
-      refreshControl={refreshControl}
-      contentContainerStyle={
-        Platform.OS !== "web" ? { paddingBottom: tabBottom } : undefined
-      }
-    >
-      {dashboardBody}
-    </TabScreen>
+    <>
+      <TabScreen
+        scroll
+        refreshControl={refreshControl}
+        contentContainerStyle={
+          Platform.OS !== "web" ? { paddingBottom: tabBottom } : undefined
+        }
+      >
+        {dashboardBody}
+      </TabScreen>
+      <Modal
+        visible={Platform.OS === "web" && showStopConfirm}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowStopConfirm(false)}
+      >
+        <Pressable
+          style={styles.confirmBackdrop}
+          onPress={() => setShowStopConfirm(false)}
+        >
+          <Pressable style={styles.confirmCard} onPress={() => null}>
+            <Text style={styles.confirmTitle}>Stop charging?</Text>
+            <Text style={styles.confirmText}>
+              End this session from the app?
+            </Text>
+            <View style={styles.confirmActions}>
+              <Pressable
+                style={styles.confirmCancel}
+                onPress={() => setShowStopConfirm(false)}
+                disabled={stopping}
+              >
+                <Text style={styles.confirmCancelText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.confirmStop, stopping && styles.btnDisabled]}
+                disabled={stopping}
+                onPress={handleConfirmStop}
+              >
+                <Text style={styles.confirmStopText}>
+                  {stopping ? "Stopping..." : "Stop"}
+                </Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+    </>
   );
 }
 
@@ -693,5 +758,62 @@ const styles = StyleSheet.create({
     color: V.card,
     fontSize: 13,
     fontWeight: "700",
+  },
+  confirmBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(11, 18, 39, 0.45)",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 20,
+  },
+  confirmCard: {
+    width: "100%",
+    maxWidth: 420,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: V.borderNavy,
+    backgroundColor: V.card,
+    padding: 18,
+  },
+  confirmTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: V.headingDeep,
+  },
+  confirmText: {
+    marginTop: 10,
+    fontSize: 14,
+    fontWeight: "500",
+    color: V.bodySecondary,
+  },
+  confirmActions: {
+    marginTop: 18,
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: 10,
+  },
+  confirmCancel: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: V.borderNavy,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: "#F5F7FB",
+  },
+  confirmCancelText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: V.headingDeep,
+  },
+  confirmStop: {
+    borderRadius: 12,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    backgroundColor: V.error,
+  },
+  confirmStopText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: V.card,
   },
 });
