@@ -158,14 +158,16 @@ export default function MapScreen() {
 
   return (
     <View style={styles.container}>
-      <MapWrapper
-        chargers={mapChargers}
-        selectedChargerId={selectedChargerId}
-        currentLocation={currentLocation}
-        isLoading={isLoading || isFetching}
-        errorMessage={mapErrorMessage}
-        onMarkerPress={onMarkerPress}
-      />
+      <View style={styles.mapLayer}>
+        <MapWrapper
+          chargers={mapChargers}
+          selectedChargerId={selectedChargerId}
+          currentLocation={currentLocation}
+          isLoading={isLoading || isFetching}
+          errorMessage={mapErrorMessage}
+          onMarkerPress={onMarkerPress}
+        />
+      </View>
 
       <View style={styles.topOverlay} pointerEvents="box-none">
         <View style={styles.headerRow}>
@@ -309,7 +311,11 @@ export default function MapScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#F3F6FB" },
-  topOverlay: { position: "absolute", top: 40, left: 16, right: 16 },
+  mapLayer: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 0,
+  },
+  topOverlay: { position: "absolute", top: 40, left: 16, right: 16, zIndex: 2 },
   headerRow: { flexDirection: "row", alignItems: "center", gap: 10 },
   searchCard: {
     flex: 1,
@@ -348,6 +354,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
+    zIndex: 2,
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     backgroundColor: "#FFFFFF",
