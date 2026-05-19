@@ -1,8 +1,10 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Animated,
+  Modal,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -77,6 +79,7 @@ export default function SessionDetails() {
   );
   const [stopCharging, { isLoading: isStopping, error: stopError }] =
     useStopChargingMutation();
+  const [showStopConfirm, setShowStopConfirm] = useState(false);
   const liveEnergy = liveData?.energy_kwh ?? session?.energy_kwh;
   const liveCost = liveData?.cost ?? session?.cost;
   const liveStatus = liveData?.status ?? session?.status ?? "";
@@ -145,6 +148,11 @@ export default function SessionDetails() {
         : "";
 
   const confirmStopCharging = () => {
+    if (Platform.OS === "web") {
+      setShowStopConfirm(true);
+      return;
+    }
+
     Alert.alert(
       "Stop charging",
       "Are you sure you want to stop this session?",
@@ -326,6 +334,53 @@ export default function SessionDetails() {
           ) : null}
         </View>
       ) : null}
+      <Modal
+        visible={Platform.OS === "web" && showStopConfirm}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowStopConfirm(false)}
+      >
+        <Pressable
+          style={styles.confirmBackdrop}
+          onPress={() => setShowStopConfirm(false)}
+        >
+          <Pressable style={styles.confirmCard} onPress={() => null}>
+            <Text style={styles.confirmTitle}>Stop charging</Text>
+            <Text style={styles.confirmText}>
+              Are you sure you want to stop this session?
+            </Text>
+            <View style={styles.confirmActions}>
+              <Pressable
+                style={styles.confirmCancel}
+                onPress={() => setShowStopConfirm(false)}
+                disabled={isStopping}
+              >
+                <Text style={styles.confirmCancelText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.confirmStop, isStopping && styles.primaryBtnDisabled]}
+                disabled={isStopping}
+                onPress={async () => {
+                  if (!sessionId) {
+                    return;
+                  }
+                  try {
+                    await stopCharging({ session_id: sessionId }).unwrap();
+                    setShowStopConfirm(false);
+                    refetch();
+                  } catch {
+                    setShowStopConfirm(false);
+                  }
+                }}
+              >
+                <Text style={styles.confirmStopText}>
+                  {isStopping ? "Stopping..." : "Stop"}
+                </Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </ScrollView>
   );
 }
@@ -519,5 +574,62 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
     color: V.error,
+  },
+  confirmBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(11, 18, 39, 0.45)",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 20,
+  },
+  confirmCard: {
+    width: "100%",
+    maxWidth: 420,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: V.borderNavy,
+    backgroundColor: V.card,
+    padding: 18,
+  },
+  confirmTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: V.headingDeep,
+  },
+  confirmText: {
+    marginTop: 10,
+    fontSize: 14,
+    fontWeight: "500",
+    color: V.bodySecondary,
+  },
+  confirmActions: {
+    marginTop: 18,
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: 10,
+  },
+  confirmCancel: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: V.borderNavy,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: "#F5F7FB",
+  },
+  confirmCancelText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: V.headingDeep,
+  },
+  confirmStop: {
+    borderRadius: 12,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    backgroundColor: V.error,
+  },
+  confirmStopText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: V.card,
   },
 });
