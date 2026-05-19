@@ -60,10 +60,10 @@ export function WalletContent({
           {Platform.OS === "web" ? (
             <>
               <Text style={styles.addPlus}>+</Text>
-              <Text style={styles.addTextWeb}>Add money via mobile app</Text>
+              <Text style={styles.addTextWeb}>Add money</Text>
             </>
           ) : (
-            <Text style={styles.addTextNative}>+ Add money via mobile app</Text>
+            <Text style={styles.addTextNative}>+ Add money</Text>
           )}
         </Pressable>
       </View>

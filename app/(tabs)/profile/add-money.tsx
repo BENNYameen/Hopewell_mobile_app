@@ -3,14 +3,19 @@ import { useState } from "react";
 import {
   Linking,
   Modal,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from "react-native";
-import WebView from "react-native-webview";
 import type { WebViewNavigation } from "react-native-webview";
+
+const NativeCheckoutWebView =
+  Platform.OS === "web"
+    ? null
+    : require("react-native-webview").default;
 
 import { USER_EMAIL_KEY, USER_NAME_KEY } from "@/auth/session";
 import { getItemAsync } from "@/auth/secureStorage";
@@ -19,6 +24,83 @@ import { useGetMeQuery } from "@/profile/profile.api";
 import { useAppDispatch } from "@/store/hooks";
 import { useInitiateTopupMutation } from "@/wallet/wallet.api";
 import { IconSymbol } from "components/ui/icon-symbol";
+
+type RazorpayCheckoutOptions = {
+  key: string;
+  amount: number;
+  currency: string;
+  name: string;
+  description: string;
+  order_id: string;
+  prefill: { name: string; contact: string };
+  theme: { color: string };
+};
+
+function loadRazorpayScript(): Promise<void> {
+  if (typeof window === "undefined") {
+    return Promise.reject(new Error("Razorpay is only available in a browser"));
+  }
+  const win = window as Window & {
+    Razorpay?: new (options: Record<string, unknown>) => {
+      open: () => void;
+      on: (
+        event: string,
+        cb: (response: { error?: { description?: string } }) => void,
+      ) => void;
+    };
+  };
+  if (win.Razorpay) {
+    return Promise.resolve();
+  }
+  return new Promise((resolve, reject) => {
+    const src = "https://checkout.razorpay.com/v1/checkout.js";
+    const existing = document.querySelector(`script[src="${src}"]`);
+    if (existing) {
+      existing.addEventListener("load", () => resolve(), { once: true });
+      existing.addEventListener(
+        "error",
+        () => reject(new Error("Failed to load Razorpay")),
+        { once: true },
+      );
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = src;
+    script.async = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("Failed to load Razorpay"));
+    document.body.appendChild(script);
+  });
+}
+
+async function openRazorpayOnWeb(
+  options: RazorpayCheckoutOptions,
+  callbacks: {
+    onSuccess: () => void;
+    onError: (description: string) => void;
+    onDismiss: () => void;
+  },
+): Promise<void> {
+  await loadRazorpayScript();
+  const win = window as Window & {
+    Razorpay: new (options: Record<string, unknown>) => {
+      open: () => void;
+      on: (
+        event: string,
+        cb: (response: { error?: { description?: string } }) => void,
+      ) => void;
+    };
+  };
+  const rzp = new win.Razorpay({
+    ...options,
+    handler: () => callbacks.onSuccess(),
+    modal: { ondismiss: () => callbacks.onDismiss() },
+  });
+  rzp.on("payment.failed", (response) => {
+    callbacks.onError(response.error?.description ?? "Payment failed");
+  });
+  rzp.open();
+}
 
 function buildRazorpayHtml(options: object): string {
   const opts = JSON.stringify(options);
@@ -85,21 +167,37 @@ export default function AddMoney() {
       const userContact =
         me?.phone_number?.trim() || storedEmail || "";
 
-      setCheckoutHtml(
-        buildRazorpayHtml({
-          key: order.key,
-          amount: order.amount,
-          currency: order.currency,
-          name: "Vajra Volt",
-          description: "Wallet top-up",
-          order_id: order.order_id,
-          prefill: {
-            name: userName,
-            contact: userContact,
+      const checkoutOptions: RazorpayCheckoutOptions = {
+        key: order.key,
+        amount: order.amount,
+        currency: order.currency,
+        name: "Vajra Volt",
+        description: "Wallet top-up",
+        order_id: order.order_id,
+        prefill: {
+          name: userName,
+          contact: userContact,
+        },
+        theme: { color: "#21B3A7" },
+      };
+
+      if (Platform.OS === "web") {
+        await openRazorpayOnWeb(checkoutOptions, {
+          onSuccess: () => {
+            dispatch(
+              api.util.invalidateTags(["WalletBalance", "WalletTransactions"]),
+            );
+            setPaymentStatus("success");
           },
-          theme: { color: "#21B3A7" },
-        }),
-      );
+          onError: (description) => {
+            setPaymentError(`Payment failed: ${description}`);
+            setPaymentStatus("failure");
+          },
+          onDismiss: () => {},
+        });
+      } else {
+        setCheckoutHtml(buildRazorpayHtml(checkoutOptions));
+      }
     } catch (err) {
       setPaymentError(`Payment failed: ${err}`);
     }
@@ -187,23 +285,25 @@ export default function AddMoney() {
         </Text>
       </Pressable>
 
-      <Modal
-        visible={checkoutHtml !== null}
-        animationType="slide"
-        onRequestClose={() => setCheckoutHtml(null)}
-      >
-        <WebView
-          source={{
-            html: checkoutHtml ?? "",
-            baseUrl: "https://checkout.razorpay.com",
-          }}
-          onMessage={handleWebViewMessage}
-          onShouldStartLoadWithRequest={handleNavRequest}
-          javaScriptEnabled
-          domStorageEnabled
-          style={styles.webview}
-        />
-      </Modal>
+      {NativeCheckoutWebView ? (
+        <Modal
+          visible={checkoutHtml !== null}
+          animationType="slide"
+          onRequestClose={() => setCheckoutHtml(null)}
+        >
+          <NativeCheckoutWebView
+            source={{
+              html: checkoutHtml ?? "",
+              baseUrl: "https://checkout.razorpay.com",
+            }}
+            onMessage={handleWebViewMessage}
+            onShouldStartLoadWithRequest={handleNavRequest}
+            javaScriptEnabled
+            domStorageEnabled
+            style={styles.webview}
+          />
+        </Modal>
+      ) : null}
 
       <Modal
         transparent
@@ -338,28 +438,36 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "rgba(15, 23, 42, 0.45)",
     justifyContent: "center",
+    alignItems: "center",
     padding: 20,
   },
   modalCard: {
+    width: "100%",
+    maxWidth: 300,
     backgroundColor: "#FFFFFF",
-    borderRadius: 18,
-    padding: 18,
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
   },
   modalTitle: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "700",
     color: "#13233D",
+    textAlign: "center",
   },
   modalBody: {
-    marginTop: 6,
-    fontSize: 13,
+    marginTop: 4,
+    fontSize: 12,
     fontWeight: "600",
     color: "#6C7CA6",
+    textAlign: "center",
   },
   modalButton: {
-    marginTop: 16,
+    marginTop: 12,
+    alignSelf: "center",
     backgroundColor: "#21B3A7",
-    paddingVertical: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 20,
     borderRadius: 999,
     alignItems: "center",
   },

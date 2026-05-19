@@ -362,7 +362,14 @@ const styles = StyleSheet.create({
     maxWidth: 420,
     paddingHorizontal: 8,
   },
-  heroCtas: { marginTop: 24, width: "100%", gap: 12, alignItems: "stretch" },
+  heroCtas: {
+    marginTop: 24,
+    alignSelf: "center",
+    width: "88%",
+    maxWidth: 300,
+    gap: 12,
+    alignItems: "stretch",
+  },
   primaryBtn: {
     flexDirection: "row",
     alignItems: "center",

@@ -11,7 +11,7 @@ import {
   View,
 } from "react-native";
 
-import { useGetMeQuery, useUpdateProfileMutation } from "@/profile/profile.api";
+import { useGetMeQuery } from "@/profile/profile.api";
 import { V } from "@/theme/vajra";
 import { IconSymbol } from "components/ui/icon-symbol";
 
@@ -19,7 +19,6 @@ export default function PersonalInfo() {
   const router = useRouter();
   const [showVerifyPrompt, setShowVerifyPrompt] = useState(false);
   const { data, isLoading, isError, error, refetch } = useGetMeQuery();
-  const [updateProfile, { isLoading: isSaving }] = useUpdateProfileMutation();
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
@@ -34,17 +33,15 @@ export default function PersonalInfo() {
     }
   }, [data]);
 
-  const handleSave = async () => {
+  const handleSave = () => {
     if (!name.trim()) {
       Alert.alert("Validation", "Name is required.");
       return;
     }
-    try {
-      await updateProfile({ full_name: name.trim(), email: email.trim() }).unwrap();
-      Alert.alert("Saved", "Your profile has been updated.");
-    } catch {
-      Alert.alert("Error", "Failed to save profile. Please try again.");
-    }
+    Alert.alert(
+      "Profile updates",
+      "The server does not support editing profile fields yet. Name and email are set when you sign in.",
+    );
   };
 
   return (
@@ -144,12 +141,8 @@ export default function PersonalInfo() {
       </ScrollView>
 
       <View style={styles.footer}>
-        <Pressable
-          style={[styles.saveButton, isSaving && styles.saveButtonDisabled]}
-          onPress={handleSave}
-          disabled={isSaving}
-        >
-          <Text style={styles.saveText}>{isSaving ? "Saving..." : "Save"}</Text>
+        <Pressable style={styles.saveButton} onPress={handleSave}>
+          <Text style={styles.saveText}>Save</Text>
         </Pressable>
       </View>
 
@@ -306,9 +299,6 @@ const styles = StyleSheet.create({
     borderRadius: V.radiusPill,
     paddingVertical: 14,
     alignItems: "center",
-  },
-  saveButtonDisabled: {
-    opacity: 0.6,
   },
   saveText: {
     color: V.card,

@@ -3,11 +3,23 @@ import { ACCESS_TOKEN_KEY } from "@/auth/session";
 import { getItemAsync } from "@/auth/secureStorage";
 import { WS_BASE_URL } from "@/config/runtime";
 
-type ChargingUpdate = {
-  status: string;
-  charger_name?: string;
+/** Payload from Vajrabackend `sessionUpdatePayload` over `/ws/charging/:session_id`. */
+export type ChargingUpdate = {
+  session_id?: string;
+  status?: string;
   energy_kwh?: number;
   cost?: number;
+  transaction_ref?: string;
+  transaction_id?: string;
+  charging_state?: string;
+  is_active?: boolean;
+  failure_reason?: string;
+  stop_requested?: boolean;
+  billed_at?: string;
+  charger_id?: string;
+  connector_id?: number;
+  /** Legacy / optional fields */
+  charger_name?: string;
   duration_sec?: number;
   power_kw?: number;
 };

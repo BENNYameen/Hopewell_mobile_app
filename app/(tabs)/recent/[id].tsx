@@ -16,6 +16,7 @@ import {
   useStopChargingMutation,
 } from "@/charging/charging.api";
 import { useChargingSocket } from "@/charging/charging.socket";
+import { isSessionLive, sessionStatusLabel } from "@/charging/sessionStatus";
 import { V } from "@/theme/vajra";
 import { IconSymbol } from "components/ui/icon-symbol";
 
@@ -69,8 +70,7 @@ export default function SessionDetails() {
     skip: !sessionId,
   });
 
-  const shouldConnect =
-    session?.status === "charging" || session?.status === "starting";
+  const shouldConnect = session ? isSessionLive(session.status) : false;
   const { data: liveData } = useChargingSocket(
     shouldConnect ? sessionId : null,
     shouldConnect,
@@ -79,7 +79,7 @@ export default function SessionDetails() {
     useStopChargingMutation();
   const liveEnergy = liveData?.energy_kwh ?? session?.energy_kwh;
   const liveCost = liveData?.cost ?? session?.cost;
-  const liveStatus = liveData?.status ?? session?.status;
+  const liveStatus = liveData?.status ?? session?.status ?? "";
   const liveDurationMin =
     liveData?.duration_sec != null
       ? Math.max(0, Math.round(liveData.duration_sec / 60))
@@ -96,7 +96,7 @@ export default function SessionDetails() {
   const pulseAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    if (liveStatus !== "charging") {
+    if (!isSessionLive(liveStatus)) {
       pulseAnim.setValue(0);
       return;
     }
@@ -244,7 +244,7 @@ export default function SessionDetails() {
           <Text style={styles.summaryLabel}>Status</Text>
           <View style={styles.statusPill}>
             <View style={styles.statusRow}>
-              {liveStatus === "charging" ? (
+              {isSessionLive(liveStatus) ? (
                 <Animated.View
                   style={[
                     styles.statusDot,
@@ -266,7 +266,7 @@ export default function SessionDetails() {
                 />
               ) : null}
               <Text style={styles.statusText}>
-                {liveStatus === "charging" ? "Charging" : "Completed"}
+                {sessionStatusLabel(liveStatus)}
               </Text>
             </View>
           </View>
@@ -310,7 +310,7 @@ export default function SessionDetails() {
         <Text style={styles.detailTitle}>Connector</Text>
         <Text style={styles.detailValue}>Connector {session.connector_id}</Text>
       </View>
-      {liveStatus === "charging" ? (
+      {isSessionLive(liveStatus) ? (
         <View style={styles.actionWrap}>
           <Pressable
             style={[styles.primaryBtn, isStopping && styles.primaryBtnDisabled]}

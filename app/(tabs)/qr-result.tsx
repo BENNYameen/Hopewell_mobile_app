@@ -67,6 +67,17 @@ export default function QRResultScreen() {
     }
   }, [decodedPayload]);
 
+  const resolvedConnectorFromQr = useMemo(() => {
+    if (
+      parsed.connector_id != null &&
+      Number.isFinite(parsed.connector_id) &&
+      parsed.connector_id >= 1
+    ) {
+      return parsed.connector_id;
+    }
+    return 1;
+  }, [parsed.connector_id]);
+
   useEffect(() => {
     if (!decodedPayload) {
       setPayloadError("Invalid QR payload.");
@@ -82,20 +93,24 @@ export default function QRResultScreen() {
     setVerified(false);
     verifyCharger({
       charger_id: parsed.charger_id,
-      connector_id: parsed.connector_id,
+      connector_id: resolvedConnectorFromQr,
     })
       .unwrap()
       .then(() => setVerified(true))
       .catch(() => setVerified(false));
-  }, [decodedPayload, parsed.charger_id, parsed.connector_id, verifyCharger]);
+  }, [
+    decodedPayload,
+    parsed.charger_id,
+    resolvedConnectorFromQr,
+    verifyCharger,
+  ]);
 
   const handleScanAgain = () => {
     router.replace("/qr");
   };
 
   const handleStartCharging = async () => {
-    const resolvedConnectorId =
-      data?.connector?.connector_id ?? parsed.connector_id;
+    const resolvedConnectorId = data?.connector_id ?? resolvedConnectorFromQr;
     const resolvedChargerId = data?.charger_id ?? parsed.charger_id;
 
     if (!resolvedChargerId || !resolvedConnectorId) {
@@ -179,21 +194,29 @@ export default function QRResultScreen() {
                   Charger · {data.charger_id}
                 </Text>
                 <Text style={styles.summaryLine}>
-                  Connector · {data.connector?.connector_id ?? "Unknown"}
+                  Connector · {data.connector_id}
                 </Text>
-                {data.location ? (
+                <Text style={styles.summaryLine}>
+                  Station status · {data.status}
+                </Text>
+                {data.last_seen ? (
                   <Text style={styles.summaryLine}>
-                    Location · {data.location}
+                    Last seen · {data.last_seen}
                   </Text>
                 ) : null}
-                {data.charger_type ? (
+                {parsed.location ? (
                   <Text style={styles.summaryLine}>
-                    Type · {data.charger_type}
+                    Location · {parsed.location}
                   </Text>
                 ) : null}
-                {data.power_kw ? (
+                {parsed.charger_type ? (
                   <Text style={styles.summaryLine}>
-                    Power · {data.power_kw} kW
+                    Type · {parsed.charger_type}
+                  </Text>
+                ) : null}
+                {parsed.power_kw ? (
+                  <Text style={styles.summaryLine}>
+                    Power · {parsed.power_kw} kW
                   </Text>
                 ) : null}
               </View>
@@ -223,7 +246,7 @@ export default function QRResultScreen() {
                 >
                   {canStartCharging
                     ? "Ready to start your session."
-                    : data.connector?.status ??
+                    : data.status ||
                       "This connector cannot start a session right now."}
                 </Text>
               </View>
