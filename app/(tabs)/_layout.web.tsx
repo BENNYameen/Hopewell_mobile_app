@@ -1,11 +1,13 @@
 import { Redirect, Tabs, useRouter } from "expo-router";
-import { View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
 
+import { WebSidebarProvider, useWebSidebar } from "@/context/web-sidebar";
 import { useAppSelector } from "@/store/hooks";
 import { V } from "@/theme/vajra";
 
 import { HapticTab } from "components/haptic-tab";
 import { WebDashboardSidebar } from "components/vajra/WebDashboardSidebar";
+import { WebShellTopBar } from "components/vajra/WebShellTopBar";
 
 /**
  * Web: Vite-style dashboard — left sidebar + main area (no bottom tab bar).
@@ -28,9 +30,27 @@ export default function TabLayoutWeb() {
   }
 
   return (
-    <View style={{ flex: 1, flexDirection: "row", backgroundColor: V.pageBg }}>
-      <WebDashboardSidebar />
-      <View style={{ flex: 1, minWidth: 0 }}>
+    <WebSidebarProvider>
+      <WebTabShell router={router} tabAccent={tabAccent} tabInactive={tabInactive} />
+    </WebSidebarProvider>
+  );
+}
+
+function WebTabShell({
+  router,
+  tabAccent,
+  tabInactive,
+}: {
+  router: ReturnType<typeof useRouter>;
+  tabAccent: string;
+  tabInactive: string;
+}) {
+  const { open, close } = useWebSidebar();
+
+  return (
+    <View style={shellStyles.root}>
+      <View style={shellStyles.main}>
+        <WebShellTopBar />
         <Tabs
           initialRouteName="home"
           tabBar={() => null}
@@ -38,6 +58,7 @@ export default function TabLayoutWeb() {
             headerShown: false,
             lazy: true,
             freezeOnBlur: true,
+            detachInactiveScreens: true,
             tabBarShowLabel: false,
             tabBarButton: HapticTab,
             tabBarActiveTintColor: tabAccent,
@@ -47,7 +68,7 @@ export default function TabLayoutWeb() {
           <Tabs.Screen name="home" />
           <Tabs.Screen name="map" options={{ href: null }} />
           <Tabs.Screen name="recent" />
-          <Tabs.Screen name="qr" />
+          <Tabs.Screen name="qr" options={{ unmountOnBlur: true }} />
           <Tabs.Screen name="qr-result" options={{ href: null }} />
           <Tabs.Screen name="offers" options={{ href: null }} />
           <Tabs.Screen
@@ -60,6 +81,59 @@ export default function TabLayoutWeb() {
           />
         </Tabs>
       </View>
+      {open ? (
+        <>
+          <Pressable
+            style={shellStyles.backdrop}
+            onPress={close}
+            accessibilityRole="button"
+            accessibilityLabel="Close navigation menu"
+          />
+          <View style={shellStyles.sidebarDrawer}>
+            <WebDashboardSidebar />
+          </View>
+        </>
+      ) : null}
     </View>
   );
 }
+
+const shellStyles = StyleSheet.create({
+  root: {
+    flex: 1,
+    position: "relative",
+    backgroundColor: V.pageBg,
+    width: "100%",
+    minHeight: "100vh",
+    height: "100vh",
+    overflow: "hidden",
+  },
+  main: {
+    flex: 1,
+    width: "100%",
+    minWidth: 0,
+    minHeight: 0,
+    overflow: "hidden",
+  },
+  backdrop: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    backgroundColor: "rgba(15, 23, 42, 0.45)",
+    zIndex: 40,
+  },
+  sidebarDrawer: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    left: 0,
+    zIndex: 50,
+    shadowColor: "#0f172a",
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    shadowOffset: { width: 4, height: 0 },
+    elevation: 8,
+  },
+});

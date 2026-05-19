@@ -1,14 +1,8 @@
 import { useRouter } from "expo-router";
 import { useCallback } from "react";
-import {
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 
+import { TabScreen } from "components/vajra/TabScreen";
 import { V } from "@/theme/vajra";
 import { useGetMeQuery } from "@/profile/profile.api";
 import { useGetWalletBalanceQuery } from "@/wallet/wallet.api";
@@ -64,8 +58,7 @@ export default function Profile() {
   );
 
   return (
-    <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content}>
+    <TabScreen>
         <View style={styles.header}>
           <View style={styles.headerSpacer} />
           <Text style={styles.headerTitle}>Account</Text>
@@ -115,21 +108,11 @@ export default function Profile() {
             ? "Vajra Volt Web - same account, all devices"
             : "Vajra Volt Web · same account, all devices"}
         </Text>
-      </ScrollView>
-    </View>
+    </TabScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: V.pageBg,
-  },
-  content: {
-    paddingHorizontal: V.appPadH,
-    paddingTop: 40,
-    paddingBottom: 128,
-  },
   header: {
     flexDirection: "row",
     alignItems: "center",

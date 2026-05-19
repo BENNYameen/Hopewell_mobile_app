@@ -11,6 +11,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 import {
   ACCESS_TOKEN_KEY,
@@ -141,7 +142,7 @@ export default function Login() {
 
   if (step === "welcome") {
     return (
-      <View style={styles.modeLoginRoot}>
+      <SafeAreaView style={styles.modeLoginRoot} edges={["top", "bottom", "left", "right"]}>
         <View style={styles.loginColumn}>
           <LightningBrandMark />
           <Text style={styles.brand}>Vajra Volt</Text>
@@ -155,13 +156,14 @@ export default function Login() {
             <Text style={styles.primaryBtnText}>Get started</Text>
           </Pressable>
         </View>
-      </View>
+      </SafeAreaView>
     );
   }
 
   return (
+    <SafeAreaView style={styles.modeLoginRoot} edges={["top", "bottom", "left", "right"]}>
     <KeyboardAvoidingView
-      style={styles.modeLoginRoot}
+      style={styles.fill}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <ScrollView
@@ -270,6 +272,7 @@ export default function Login() {
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
@@ -277,6 +280,9 @@ const styles = StyleSheet.create({
   modeLoginRoot: {
     flex: 1,
     backgroundColor: V.card,
+  },
+  fill: {
+    flex: 1,
   },
   loginColumn: {
     flex: 1,

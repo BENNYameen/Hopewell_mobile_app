@@ -1,6 +1,8 @@
 import { Platform, Pressable, StyleSheet, Text, View, ViewStyle } from "react-native";
 import { useRouter } from "expo-router";
+import { SafeAreaView } from "react-native-safe-area-context";
 
+import { useTabScreenInsets } from "@/hooks/use-tab-screen-insets";
 import { V } from "@/theme/vajra";
 import { IconSymbol } from "components/ui/icon-symbol";
 import { useGetWalletBalanceQuery } from "@/wallet/wallet.api";
@@ -78,23 +80,33 @@ export function WalletContent({
 
 export default function Wallet() {
   const router = useRouter();
+  const { top, bottom, horizontal } = useTabScreenInsets();
 
   return (
-    <WalletContent
-      showBack={Platform.OS !== "web"}
-      onBack={() => router.back()}
-      onAddMoney={() => router.push("/profile/add-money")}
-      onTransactions={() => router.push("/profile/transactions")}
-    />
+    <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
+      <WalletContent
+        showBack={Platform.OS !== "web"}
+        onBack={() => router.back()}
+        onAddMoney={() => router.push("/profile/add-money")}
+        onTransactions={() => router.push("/profile/transactions")}
+        containerStyle={{
+          paddingTop: top,
+          paddingBottom: bottom,
+          paddingHorizontal: horizontal,
+        }}
+      />
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safe: {
+    flex: 1,
+    backgroundColor: V.pageBg,
+  },
   container: {
     flex: 1,
     backgroundColor: V.pageBg,
-    paddingHorizontal: V.appPadH,
-    paddingTop: 40,
   },
   backBtn: {
     width: 36,

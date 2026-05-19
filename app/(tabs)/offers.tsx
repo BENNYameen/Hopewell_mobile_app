@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from "react-native";
 
+import { TabScreen } from "components/vajra/TabScreen";
 import { useGetOffersQuery, Offer } from "@/profile/profile.api";
 import { V } from "@/theme/vajra";
 
@@ -9,13 +10,13 @@ export default function Offers() {
   const [activeOffer, setActiveOffer] = useState<Offer | null>(null);
 
   return (
-    <View style={styles.container}>
+    <TabScreen scroll={!isLoading}>
       <Text style={styles.title}>Offers</Text>
 
       {isLoading ? (
         <ActivityIndicator style={styles.loader} color="#21B3A7" />
       ) : (
-        <ScrollView contentContainerStyle={styles.list}>
+        <View style={styles.list}>
           {offers.length === 0 ? (
             <Text style={styles.empty}>No offers available right now</Text>
           ) : (
@@ -39,7 +40,7 @@ export default function Offers() {
               </View>
             ))
           )}
-        </ScrollView>
+        </View>
       )}
 
       <Modal
@@ -65,21 +66,15 @@ export default function Offers() {
           </Pressable>
         </Pressable>
       </Modal>
-    </View>
+    </TabScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#F3F6FB",
-    paddingTop: 40,
-  },
   title: {
     fontSize: 22,
     fontWeight: "700",
     color: "#0F172A",
-    paddingHorizontal: 16,
     marginBottom: 12,
   },
   loader: {
@@ -93,8 +88,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   list: {
-    paddingHorizontal: 16,
-    paddingBottom: 120,
+    gap: 0,
   },
   card: {
     backgroundColor: "#FFFFFF",

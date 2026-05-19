@@ -1,15 +1,8 @@
-import {
-  Linking,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { Linking, Pressable, StyleSheet, Text } from "react-native";
 import { useRouter } from "expo-router";
 
 import { IconSymbol } from "components/ui/icon-symbol";
-import { V } from "@/theme/vajra";
+import { ProfileSubScreen } from "components/vajra/ProfileSubScreen";
 import { useGetSupportConfigQuery } from "@/profile/profile.api";
 
 export default function HelpSupport() {
@@ -25,105 +18,51 @@ export default function HelpSupport() {
     Linking.openURL(`tel:${raw.replace(/\s+/g, "")}`);
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Pressable style={styles.backButton} onPress={() => router.back()}>
-          <IconSymbol name="arrow.left" size={18} color={V.headingDeep} />
-        </Pressable>
-        <Text style={styles.headerTitle}>Help</Text>
-        <View style={styles.headerSpacer} />
-      </View>
+    <ProfileSubScreen title="Help">
+      <Text style={styles.sectionTitle}>Customer Support</Text>
+      <Pressable style={styles.row} onPress={() => dialPhone(supportPhone)}>
+        <IconSymbol name="phone" size={18} color="#6C7CA6" />
+        <Text style={styles.rowText}>{supportPhone}</Text>
+      </Pressable>
+      <Pressable
+        style={styles.row}
+        onPress={() => Linking.openURL(`mailto:${supportEmail}`)}
+      >
+        <IconSymbol name="email" size={18} color="#6C7CA6" />
+        <Text style={styles.rowText}>{supportEmail}</Text>
+      </Pressable>
 
-      <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.sectionTitle}>Customer Support</Text>
-        <Pressable style={styles.row} onPress={() => dialPhone(supportPhone)}>
-          <IconSymbol name="phone" size={18} color="#6C7CA6" />
-          <Text style={styles.rowText}>{supportPhone}</Text>
-        </Pressable>
-        <Pressable
-          style={styles.row}
-          onPress={() => Linking.openURL(`mailto:${supportEmail}`)}
-        >
-          <IconSymbol name="email" size={18} color="#6C7CA6" />
-          <Text style={styles.rowText}>{supportEmail}</Text>
-        </Pressable>
+      <Text style={styles.sectionTitle}>Become a franchisee</Text>
+      <Pressable style={styles.row} onPress={() => dialPhone(franchiseePhone)}>
+        <IconSymbol name="phone" size={18} color="#6C7CA6" />
+        <Text style={styles.rowText}>{franchiseePhone}</Text>
+      </Pressable>
+      <Pressable
+        style={styles.row}
+        onPress={() => Linking.openURL(`mailto:${franchiseeEmail}`)}
+      >
+        <IconSymbol name="email" size={18} color="#6C7CA6" />
+        <Text style={styles.rowText}>{franchiseeEmail}</Text>
+      </Pressable>
 
-        <Text style={styles.sectionTitle}>Become a franchisee</Text>
-        <Pressable
-          style={styles.row}
-          onPress={() => dialPhone(franchiseePhone)}
-        >
-          <IconSymbol name="phone" size={18} color="#6C7CA6" />
-          <Text style={styles.rowText}>{franchiseePhone}</Text>
-        </Pressable>
-        <Pressable
-          style={styles.row}
-          onPress={() => Linking.openURL(`mailto:${franchiseeEmail}`)}
-        >
-          <IconSymbol name="email" size={18} color="#6C7CA6" />
-          <Text style={styles.rowText}>{franchiseeEmail}</Text>
-        </Pressable>
-
-        <Text style={styles.sectionTitle}>Legal & Information</Text>
-        <Pressable
-          style={styles.row}
-          onPress={() => router.push("/profile/terms")}
-        >
-          <IconSymbol name="description" size={18} color="#6C7CA6" />
-          <Text style={styles.rowText}>Terms and Conditions</Text>
-        </Pressable>
-        <Pressable
-          style={styles.row}
-          onPress={() => router.push("/profile/privacy")}
-        >
-          <IconSymbol name="policy" size={18} color="#6C7CA6" />
-          <Text style={styles.rowText}>Privacy Policy</Text>
-        </Pressable>
-        <Pressable style={styles.row}>
-          <IconSymbol name="help" size={18} color="#6C7CA6" />
-          <Text style={styles.rowText}>Frequently Asked Questions</Text>
-        </Pressable>
-      </ScrollView>
-    </View>
+      <Text style={styles.sectionTitle}>Legal & Information</Text>
+      <Pressable style={styles.row} onPress={() => router.push("/profile/terms")}>
+        <IconSymbol name="description" size={18} color="#6C7CA6" />
+        <Text style={styles.rowText}>Terms and Conditions</Text>
+      </Pressable>
+      <Pressable style={styles.row} onPress={() => router.push("/profile/privacy")}>
+        <IconSymbol name="policy" size={18} color="#6C7CA6" />
+        <Text style={styles.rowText}>Privacy Policy</Text>
+      </Pressable>
+      <Pressable style={styles.row}>
+        <IconSymbol name="help" size={18} color="#6C7CA6" />
+        <Text style={styles.rowText}>Frequently Asked Questions</Text>
+      </Pressable>
+    </ProfileSubScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: V.pageBg,
-  },
-  header: {
-    paddingTop: 40,
-    paddingHorizontal: V.appPadH,
-    paddingBottom: 12,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  backButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: V.borderNavy,
-    backgroundColor: V.card,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: V.headingDeep,
-  },
-  headerSpacer: {
-    width: 36,
-    height: 36,
-  },
-  content: {
-    paddingHorizontal: V.appPadH,
-    paddingBottom: 40,
-  },
   sectionTitle: {
     marginTop: 16,
     marginBottom: 10,
@@ -139,6 +78,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   rowText: {
+    flex: 1,
     marginLeft: 10,
     fontSize: 14,
     fontWeight: "600",

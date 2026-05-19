@@ -1,13 +1,7 @@
 import { useRouter } from "expo-router";
-import {
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 
+import { TabScreen } from "components/vajra/TabScreen";
 import { V } from "@/theme/vajra";
 import { useGetWalletTransactionsQuery } from "@/wallet/wallet.api";
 import { IconSymbol } from "components/ui/icon-symbol";
@@ -35,27 +29,26 @@ export default function Transactions() {
     useGetWalletTransactionsQuery(50);
 
   return (
-    <View style={styles.container}>
-      {/* Header row: circular back button + title + refresh */}
-      <View style={styles.headerRow}>
-        <Pressable style={styles.backBtn} onPress={() => router.back()}>
-          <IconSymbol name="arrow.left" size={18} color={V.headingDeep} />
-        </Pressable>
-        <Text
-          style={[
-            styles.title,
-            Platform.OS === "web" ? styles.titleWeb : null,
-          ]}
-        >
-          Transactions
-        </Text>
-        <Pressable
-          style={styles.refreshButton}
-          onPress={() => refetch()}
-        >
-          <Text style={styles.refreshText}>Refresh</Text>
-        </Pressable>
-      </View>
+    <TabScreen
+      header={
+        <View style={styles.headerRow}>
+          <Pressable style={styles.backBtn} onPress={() => router.back()}>
+            <IconSymbol name="arrow.left" size={18} color={V.headingDeep} />
+          </Pressable>
+          <Text
+            style={[
+              styles.title,
+              Platform.OS === "web" ? styles.titleWeb : null,
+            ]}
+          >
+            Transactions
+          </Text>
+          <Pressable style={styles.refreshButton} onPress={() => refetch()}>
+            <Text style={styles.refreshText}>Refresh</Text>
+          </Pressable>
+        </View>
+      }
+    >
       {isError ? (
         <View style={styles.errorBox}>
           <Text style={styles.errorText}>
@@ -66,7 +59,7 @@ export default function Transactions() {
           </Pressable>
         </View>
       ) : null}
-      <ScrollView contentContainerStyle={styles.list}>
+      <View style={styles.list}>
         {isLoading ? (
           <Text style={styles.body}>Loading...</Text>
         ) : data && data.length > 0 ? (
@@ -97,18 +90,12 @@ export default function Transactions() {
         ) : (
           <Text style={styles.body}>No transactions yet.</Text>
         )}
-      </ScrollView>
-    </View>
+      </View>
+    </TabScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: V.pageBg,
-    paddingHorizontal: V.appPadH,
-    paddingTop: 40,
-  },
   headerRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -163,7 +150,6 @@ const styles = StyleSheet.create({
   },
   list: {
     paddingTop: 6,
-    paddingBottom: 120,
   },
   txCard: {
     backgroundColor: V.card,

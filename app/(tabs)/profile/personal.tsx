@@ -10,13 +10,16 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
+import { useTabScreenInsets } from "@/hooks/use-tab-screen-insets";
 import { useGetMeQuery } from "@/profile/profile.api";
 import { V } from "@/theme/vajra";
 import { IconSymbol } from "components/ui/icon-symbol";
 
 export default function PersonalInfo() {
   const router = useRouter();
+  const { top, horizontal, footerBottom } = useTabScreenInsets();
   const [showVerifyPrompt, setShowVerifyPrompt] = useState(false);
   const { data, isLoading, isError, error, refetch } = useGetMeQuery();
   const [name, setName] = useState("");
@@ -45,8 +48,18 @@ export default function PersonalInfo() {
   };
 
   return (
-    <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content}>
+    <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
+      <ScrollView
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={[
+          styles.content,
+          {
+            paddingTop: top,
+            paddingHorizontal: horizontal,
+            paddingBottom: footerBottom + 88,
+          },
+        ]}
+      >
         <Pressable style={styles.backBtn} onPress={() => router.back()}>
           <IconSymbol name="arrow.left" size={18} color="#0F172A" />
         </Pressable>
@@ -140,7 +153,7 @@ export default function PersonalInfo() {
         </View>
       </ScrollView>
 
-      <View style={styles.footer}>
+      <View style={[styles.footer, { bottom: footerBottom, paddingHorizontal: horizontal }]}>
         <Pressable style={styles.saveButton} onPress={handleSave}>
           <Text style={styles.saveText}>Save</Text>
         </Pressable>
@@ -178,7 +191,7 @@ export default function PersonalInfo() {
           </Pressable>
         </Pressable>
       </Modal>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -204,11 +217,7 @@ const styles = StyleSheet.create({
     color: V.headingDeep,
     marginBottom: 18,
   },
-  content: {
-    paddingHorizontal: V.appPadH,
-    paddingTop: 40,
-    paddingBottom: 200,
-  },
+  content: {},
   field: {
     marginBottom: 16,
   },
@@ -289,8 +298,6 @@ const styles = StyleSheet.create({
     position: "absolute",
     left: 0,
     right: 0,
-    bottom: 90,
-    paddingHorizontal: V.appPadH,
     paddingVertical: 16,
     backgroundColor: V.pageBg,
   },

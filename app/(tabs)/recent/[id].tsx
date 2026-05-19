@@ -1,15 +1,15 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useRef } from "react";
 import {
-  Alert,
   Animated,
   Pressable,
   RefreshControl,
-  ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
+
+import { TabScreen } from "components/vajra/TabScreen";
 
 import {
   useGetChargingSessionQuery,
@@ -17,6 +17,7 @@ import {
 } from "@/charging/charging.api";
 import { useChargingSocket } from "@/charging/charging.socket";
 import { isSessionLive, sessionStatusLabel } from "@/charging/sessionStatus";
+import { confirmAction } from "@/utils/confirmAction";
 import { V } from "@/theme/vajra";
 import { IconSymbol } from "components/ui/icon-symbol";
 
@@ -144,95 +145,93 @@ export default function SessionDetails() {
         ? "Unable to stop charging."
         : "";
 
-  const confirmStopCharging = () => {
-    Alert.alert(
+  const confirmStopCharging = async () => {
+    if (!sessionId) return;
+    const confirmed = await confirmAction(
       "Stop charging",
       "Are you sure you want to stop this session?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Stop",
-          style: "destructive",
-          onPress: async () => {
-            if (!sessionId) {
-              return;
-            }
-            try {
-              await stopCharging({ session_id: sessionId }).unwrap();
-              refetch();
-            } catch {
-              // error message handled inline
-            }
-          },
-        },
-      ],
+      "Stop",
     );
+    if (!confirmed) return;
+    try {
+      await stopCharging({ session_id: sessionId }).unwrap();
+      refetch();
+    } catch {
+      // error message handled inline via stopErrorMessage
+    }
   };
 
   if (!sessionId) {
     return (
-      <View style={styles.container}>
-        <Text style={styles.header}>Session not found</Text>
-        <Pressable
-          onPress={() => router.replace("/recent")}
-          style={styles.backBtn}
-        >
-          <IconSymbol name="arrow.left" size={18} color={V.headingDeep} />
-        </Pressable>
-      </View>
+      <TabScreen
+        header={
+          <Pressable
+            onPress={() => router.replace("/recent")}
+            style={styles.backBtn}
+          >
+            <IconSymbol name="arrow.left" size={18} color={V.headingDeep} />
+          </Pressable>
+        }
+      >
+        <Text style={styles.stateMessage}>Session not found</Text>
+      </TabScreen>
     );
   }
 
   if (isLoading) {
     return (
-      <View style={styles.container}>
-        <Text style={styles.header}>Loading session...</Text>
-      </View>
+      <TabScreen>
+        <Text style={styles.stateMessage}>Loading session...</Text>
+      </TabScreen>
     );
   }
 
   if (isError || !session) {
     return (
-      <View style={styles.container}>
-        <Text style={styles.header}>
+      <TabScreen
+        header={
+          <Pressable
+            onPress={() => router.replace("/recent")}
+            style={styles.backBtn}
+          >
+            <IconSymbol name="arrow.left" size={18} color={V.headingDeep} />
+          </Pressable>
+        }
+      >
+        <Text style={styles.stateMessage}>
           {isNotFound ? "Session not found" : "Unable to load session"}
         </Text>
-        <Pressable
-          onPress={() => router.replace("/recent")}
-          style={styles.backBtn}
-        >
-          <IconSymbol name="arrow.left" size={18} color={V.headingDeep} />
-        </Pressable>
-      </View>
+      </TabScreen>
     );
   }
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
+    <TabScreen
       refreshControl={
         <RefreshControl refreshing={isFetching} onRefresh={refetch} />
       }
+      header={
+        <View style={styles.topBar}>
+          <Pressable
+            onPress={() => router.replace("/recent")}
+            style={styles.backBtn}
+          >
+            <IconSymbol name="arrow.left" size={18} color={V.headingDeep} />
+          </Pressable>
+          <Text style={styles.topTitle} numberOfLines={1}>
+            Session details
+          </Text>
+          <View style={styles.topBarSpacer} />
+        </View>
+      }
     >
-      <View style={styles.topBar}>
-        <Pressable
-          onPress={() => router.replace("/recent")}
-          style={styles.backBtn}
-        >
-          <IconSymbol name="arrow.left" size={18} color={V.headingDeep} />
-        </Pressable>
-        <Text style={styles.topTitle}>Session details</Text>
-        <View style={styles.topBarSpacer} />
-      </View>
-
       <View style={styles.summaryCard}>
         <View style={styles.summaryHeader}>
           <View style={styles.iconWrap}>
             <IconSymbol name="bolt.fill" size={26} color={V.primary} />
           </View>
           <View style={styles.summaryText}>
-            <Text style={styles.summaryTitle}>
+            <Text style={styles.summaryTitle} numberOfLines={2}>
               {liveData?.charger_name ?? session.charger_id}
             </Text>
             <Text style={styles.summaryMeta}>
@@ -310,7 +309,7 @@ export default function SessionDetails() {
         <Text style={styles.detailTitle}>Connector</Text>
         <Text style={styles.detailValue}>Connector {session.connector_id}</Text>
       </View>
-      {isSessionLive(liveStatus) ? (
+      {isSessionLive(liveStatus) && liveStatus !== "stopping" ? (
         <View style={styles.actionWrap}>
           <Pressable
             style={[styles.primaryBtn, isStopping && styles.primaryBtnDisabled]}
@@ -326,25 +325,15 @@ export default function SessionDetails() {
           ) : null}
         </View>
       ) : null}
-    </ScrollView>
+    </TabScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: V.pageBg,
-  },
-  content: {
-    paddingHorizontal: V.appPadH,
-    paddingTop: 40,
-    paddingBottom: 140,
-  },
-  header: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: V.headingDeep,
-    paddingTop: 40,
+  stateMessage: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: V.bodySecondary,
   },
   topBar: {
     flexDirection: "row",
@@ -394,6 +383,8 @@ const styles = StyleSheet.create({
     borderColor: V.primary,
   },
   summaryText: {
+    flex: 1,
+    minWidth: 0,
     marginLeft: 12,
   },
   summaryTitle: {

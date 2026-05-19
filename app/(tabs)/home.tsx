@@ -7,26 +7,27 @@ import Constants from "expo-constants";
 import { useCallback, useMemo } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Image,
   Platform,
   Pressable,
   RefreshControl,
-  ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useTabScreenInsets } from "@/hooks/use-tab-screen-insets";
+import { TabScreen } from "components/vajra/TabScreen";
 import { useFocusEffect } from "@react-navigation/native";
 
 import {
   useGetActiveChargingSessionQuery,
+  useGetChargingSessionsQuery,
   useStopChargingMutation,
 } from "@/charging/charging.api";
 import { useGetChargersQuery } from "@/charging/stations.api";
 import { useChargingSocket } from "@/charging/charging.socket";
 import { isSessionLive, sessionStatusLabel } from "@/charging/sessionStatus";
+import { confirmAction, showAlert } from "@/utils/confirmAction";
 import { useGetMeQuery } from "@/profile/profile.api";
 import { useGetWalletBalanceQuery } from "@/wallet/wallet.api";
 import { V } from "@/theme/vajra";
@@ -62,12 +63,22 @@ function durationMin(startTime: string, liveSec?: number | null) {
 
 export default function HomeDashboard() {
   const router = useRouter();
+  const { bottom: tabBottom } = useTabScreenInsets();
   const googleMapsApiKey =
     Constants.expoConfig?.extra?.googleMapsApiKey ??
     Constants.manifest2?.extra?.expoClient?.extra?.googleMapsApiKey ??
     "";
   const { data: me } = useGetMeQuery();
-  const { refetch: refetchWallet } = useGetWalletBalanceQuery();
+  const {
+    data: wallet,
+    isLoading: walletLoading,
+    refetch: refetchWallet,
+  } = useGetWalletBalanceQuery();
+  const {
+    data: sessionsData,
+    isLoading: sessionsLoading,
+    refetch: refetchSessions,
+  } = useGetChargingSessionsQuery({ status: "all" });
   const { data: stations = [] } = useGetChargersQuery();
   const {
     data: activeSession,
@@ -84,8 +95,24 @@ export default function HomeDashboard() {
     useCallback(() => {
       refetchActive();
       refetchWallet();
-    }, [refetchActive, refetchWallet]),
+      refetchSessions();
+    }, [refetchActive, refetchWallet, refetchSessions]),
   );
+
+  const walletSummary = useMemo(() => {
+    if (walletLoading) return "...";
+    if (!wallet) return "--";
+    const symbol = wallet.currency === "INR" ? "₹" : wallet.currency;
+    return `${symbol} ${Number(wallet.balance).toFixed(2)}`;
+  }, [wallet, walletLoading]);
+
+  const historySummary = useMemo(() => {
+    if (sessionsLoading) return "...";
+    const list = Array.isArray(sessionsData) ? sessionsData : [];
+    const pastCount = list.filter((s) => !isSessionLive(s.status)).length;
+    if (pastCount === 0) return "No sessions yet";
+    return pastCount === 1 ? "1 session" : `${pastCount} sessions`;
+  }, [sessionsData, sessionsLoading]);
 
   const liveSession = activeSession ?? null;
   const isLive = liveSession ? isSessionLive(liveSession.status) : false;
@@ -149,47 +176,42 @@ export default function HomeDashboard() {
     }));
   }, [mappableStations]);
 
+  const canStopSession =
+    isSessionLive(liveStatus) && liveStatus !== "stopping";
+
   const onStopCharging = async () => {
-    if (!liveSession) return;
-    Alert.alert(
+    if (!liveSession || !canStopSession) return;
+    const confirmed = await confirmAction(
       "Stop charging?",
       "End this session from the app?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Stop",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await stopCharging({ session_id: liveSession.id }).unwrap();
-              refetchActive();
-            } catch {
-              Alert.alert(
-                "Could not stop",
-                "Try again or finish from the charger.",
-              );
-            }
-          },
-        },
-      ],
+      "Stop",
     );
+    if (!confirmed) return;
+    try {
+      await stopCharging({ session_id: liveSession.id }).unwrap();
+      refetchActive();
+    } catch {
+      showAlert(
+        "Could not stop",
+        "Try again or finish from the charger.",
+      );
+    }
   };
 
-  return (
-    <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
-      <ScrollView
-        contentContainerStyle={styles.scroll}
-        refreshControl={
-          <RefreshControl
-            refreshing={isFetching}
-            onRefresh={() => {
-              refetchActive();
-              refetchWallet();
-            }}
-            tintColor={V.primary}
-          />
-        }
-      >
+  const refreshControl = (
+    <RefreshControl
+      refreshing={isFetching}
+      onRefresh={() => {
+        refetchActive();
+        refetchWallet();
+        refetchSessions();
+      }}
+      tintColor={V.primary}
+    />
+  );
+
+  const dashboardBody = (
+    <>
         <Text style={styles.greeting}>{greetingText}</Text>
         <Text style={styles.subtitle}>
           {liveSession
@@ -240,7 +262,7 @@ export default function HomeDashboard() {
                 <IconSymbol name="bolt.fill" size={24} color="#FFFFFF" />
               </View>
               <View style={styles.liveMain}>
-                <Text style={styles.liveTitle}>
+                <Text style={styles.liveTitle} numberOfLines={1}>
                   {wsData?.charger_name ?? liveSession.charger_id}
                 </Text>
                 <Text style={styles.liveMeta}>
@@ -276,7 +298,7 @@ export default function HomeDashboard() {
               >
                 <Text style={styles.btnOutlineText}>View details</Text>
               </Pressable>
-              {liveStatus === "charging" ? (
+              {canStopSession ? (
                 <Pressable
                   style={[styles.btnStop, stopping && styles.btnDisabled]}
                   onPress={onStopCharging}
@@ -295,21 +317,12 @@ export default function HomeDashboard() {
 
         {!isLoading && !liveSession && !hasLoadError ? (
           <View style={styles.emptyCard}>
-            <View
-              style={[
-                styles.emptyIcon,
-                Platform.OS === "web" ? styles.emptyIconWeb : null,
-              ]}
-            >
-              <IconSymbol
-                name="bolt.fill"
-                size={32}
-                color={Platform.OS === "web" ? "#FFFFFF" : V.primary}
-              />
+            <View style={styles.emptyIcon}>
+              <IconSymbol name="bolt.fill" size={32} color={V.primary} />
             </View>
             <Text style={styles.emptyTitle}>No active session</Text>
             <Text style={styles.emptyBody}>
-              Enter the charger ID to begin a session.
+              Scan the charger QR code or enter the charger ID to begin.
             </Text>
             <Pressable
               style={styles.primaryBtn}
@@ -327,70 +340,62 @@ export default function HomeDashboard() {
               onPress={() => router.push("/recent")}
             >
               <Text style={styles.metricLabel}>History</Text>
-              <Text style={styles.metricValue}>Past sessions</Text>
+              <Text style={styles.metricValue} numberOfLines={1}>
+                {historySummary}
+              </Text>
             </Pressable>
             <Pressable
               style={styles.metricCard}
               onPress={() => router.push("/profile/wallet")}
             >
               <Text style={styles.metricLabel}>Wallet</Text>
-              <Text style={styles.metricValue}>Balance & top up</Text>
+              <Text style={styles.metricValue} numberOfLines={1}>
+                {walletSummary}
+              </Text>
             </Pressable>
           </View>
         ) : null}
 
-        <View style={styles.mapCard}>
-          <Text style={styles.mapTitle}>Nearby Chargers</Text>
-          {Platform.OS === "web" ? (
-            <View style={styles.mapPreview}>
-              {webPreviewPoints.map((point) => (
-                <View
-                  key={point.id}
-                  style={[
-                    styles.webDot,
-                    {
-                      left: `${point.x}%`,
-                      top: `${point.y}%`,
-                      backgroundColor: point.available ? "#21B3A7" : "#E0586A",
-                    },
-                  ]}
-                />
-              ))}
-            </View>
-          ) : mapPreviewUrl ? (
-            <Image
-              source={{ uri: mapPreviewUrl }}
-              resizeMode="cover"
-              style={styles.mapPreview}
-            />
-          ) : (
-            <View style={styles.mapFallback}>
-              <Text style={styles.mapFallbackText}>
-                {mappableStations.length === 0
-                  ? "Map preview unavailable. Charger locations are missing."
-                  : "Map preview unavailable. Add Google Maps API key to show it."}
-              </Text>
-            </View>
-          )}
-          <Pressable style={styles.mapCta} onPress={() => router.push("/map")}>
-            <Text style={styles.mapCtaText}>Open Full Map</Text>
-          </Pressable>
-        </View>
-      </ScrollView>
-    </SafeAreaView>
+        {Platform.OS !== "web" ? (
+          <View style={styles.mapCard}>
+            <Text style={styles.mapTitle}>Nearby Chargers</Text>
+            {mapPreviewUrl ? (
+              <Image
+                source={{ uri: mapPreviewUrl }}
+                resizeMode="cover"
+                style={styles.mapPreview}
+              />
+            ) : (
+              <View style={styles.mapFallback}>
+                <Text style={styles.mapFallbackText}>
+                  {mappableStations.length === 0
+                    ? "Map preview unavailable. Charger locations are missing."
+                    : "Map preview unavailable. Add Google Maps API key to show it."}
+                </Text>
+              </View>
+            )}
+            <Pressable style={styles.mapCta} onPress={() => router.push("/map")}>
+              <Text style={styles.mapCtaText}>Open Full Map</Text>
+            </Pressable>
+          </View>
+        ) : null}
+    </>
+  );
+
+  return (
+    <TabScreen
+      scroll
+      refreshControl={refreshControl}
+      contentContainerStyle={
+        Platform.OS !== "web" ? { paddingBottom: tabBottom } : undefined
+      }
+    >
+      {dashboardBody}
+    </TabScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: {
-    flex: 1,
-    backgroundColor: V.pageBg,
-  },
-  scroll: {
-    paddingHorizontal: V.appPadH,
-    paddingTop: 20,
-    paddingBottom: 128,
-  },
   greeting: {
     fontSize: 24,
     fontWeight: "700",
@@ -432,8 +437,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-start",
     justifyContent: "space-between",
+    gap: 8,
   },
   liveHeaderRight: {
+    flexShrink: 0,
     alignItems: "flex-end",
   },
   liveBadge: {
@@ -482,6 +489,7 @@ const styles = StyleSheet.create({
   },
   liveMain: {
     flex: 1,
+    minWidth: 0,
     marginLeft: 12,
   },
   liveTitle: {
@@ -571,9 +579,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginBottom: 14,
   },
-  emptyIconWeb: {
-    backgroundColor: "#2EC6C9",
-  },
   emptyTitle: {
     fontSize: 18,
     fontWeight: "700",
@@ -593,7 +598,9 @@ const styles = StyleSheet.create({
     backgroundColor: V.primary,
     borderRadius: V.radiusPill,
     paddingVertical: 14,
+    paddingHorizontal: 20,
     alignItems: "center",
+    justifyContent: "center",
   },
   primaryBtnText: {
     color: V.card,

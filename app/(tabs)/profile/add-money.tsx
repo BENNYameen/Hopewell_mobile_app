@@ -23,6 +23,7 @@ import { api } from "@/api/api";
 import { useGetMeQuery } from "@/profile/profile.api";
 import { useAppDispatch } from "@/store/hooks";
 import { useInitiateTopupMutation } from "@/wallet/wallet.api";
+import { ProfileSubScreen } from "components/vajra/ProfileSubScreen";
 import { IconSymbol } from "components/ui/icon-symbol";
 
 type RazorpayCheckoutOptions = {
@@ -241,12 +242,8 @@ export default function AddMoney() {
   };
 
   return (
-    <View style={styles.container}>
-      <Pressable style={styles.backRow} onPress={() => router.back()}>
-        <IconSymbol name="arrow.left" size={18} color="#0F172A" />
-        <Text style={styles.backText}>Back</Text>
-      </Pressable>
-      <Text style={styles.title}>Add money</Text>
+    <>
+    <ProfileSubScreen title="Add money" keyboardAvoiding>
       <Text style={styles.body}>Top up your wallet balance here.</Text>
 
       <View style={styles.inputGroup}>
@@ -284,6 +281,7 @@ export default function AddMoney() {
           {isLoading ? "Creating..." : "Proceed to pay"}
         </Text>
       </Pressable>
+    </ProfileSubScreen>
 
       {NativeCheckoutWebView ? (
         <Modal
@@ -355,7 +353,7 @@ export default function AddMoney() {
           </Pressable>
         </Pressable>
       </Modal>
-    </View>
+    </>
   );
 }
 

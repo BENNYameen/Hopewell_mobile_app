@@ -1,6 +1,11 @@
 import { Redirect, Tabs, useRouter } from "expo-router";
 import { Platform, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAppSelector } from "@/store/hooks";
+import {
+  TAB_BAR_FLOAT_GAP,
+  TAB_BAR_HEIGHT,
+} from "@/hooks/use-tab-screen-insets";
 import { V } from "@/theme/vajra";
 
 import { HapticTab } from "components/haptic-tab";
@@ -77,6 +82,8 @@ export default function TabLayout() {
     (state) => state.auth,
   );
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const tabBarBottom = Math.max(insets.bottom, TAB_BAR_FLOAT_GAP);
   const tabAccent = V.primary;
   const tabInactive = V.label;
 
@@ -95,6 +102,7 @@ export default function TabLayout() {
         headerShown: false,
         lazy: true,
         freezeOnBlur: true,
+        detachInactiveScreens: true,
         tabBarShowLabel: false,
         tabBarButton: HapticTab,
 
@@ -103,10 +111,10 @@ export default function TabLayout() {
 
         tabBarStyle: {
           position: "absolute",
-          bottom: 24,
+          bottom: tabBarBottom,
           left: 20,
           right: 20,
-          height: 64,
+          height: TAB_BAR_HEIGHT,
           borderRadius: 32,
           backgroundColor: V.card,
           borderTopWidth: 0,
@@ -155,6 +163,7 @@ export default function TabLayout() {
         name="qr"
         options={{
           tabBarIcon: () => <QRFloatingButton color={tabAccent} />,
+          unmountOnBlur: true,
         }}
       />
       <Tabs.Screen

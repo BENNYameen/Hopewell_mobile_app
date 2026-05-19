@@ -1,8 +1,7 @@
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text } from "react-native";
 import { useRouter } from "expo-router";
 
-import { IconSymbol } from "components/ui/icon-symbol";
-import { V } from "@/theme/vajra";
+import { ProfileSubScreen } from "components/vajra/ProfileSubScreen";
 import { clearStoredSession } from "@/auth/session";
 import { useLogoutMutation } from "@/auth/auth.api";
 import { logout as logoutAction } from "@/features/auth/slice";
@@ -26,11 +25,7 @@ export default function Logout() {
   };
 
   return (
-    <View style={styles.container}>
-      <Pressable style={styles.backBtn} onPress={() => router.back()}>
-        <IconSymbol name="arrow.left" size={18} color={V.headingDeep} />
-      </Pressable>
-      <Text style={styles.title}>Log out</Text>
+    <ProfileSubScreen title="Log out">
       <Text style={styles.body}>
         Log out confirmation will be handled here.
       </Text>
@@ -44,34 +39,11 @@ export default function Logout() {
           {isLoading ? "Signing out..." : "Confirm log out"}
         </Text>
       </Pressable>
-    </View>
+    </ProfileSubScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: V.pageBg,
-    paddingHorizontal: V.appPadH,
-    paddingTop: 40,
-  },
-  backBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: V.borderNavy,
-    backgroundColor: V.card,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 16,
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: V.headingDeep,
-    marginBottom: 12,
-  },
   body: {
     fontSize: 14,
     color: "#6C7CA6",

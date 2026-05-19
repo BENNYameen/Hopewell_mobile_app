@@ -2,6 +2,7 @@ import { useRouter } from "expo-router";
 import { useCallback, useMemo } from "react";
 import {
   FlatList,
+  Platform,
   Pressable,
   RefreshControl,
   StyleSheet,
@@ -12,6 +13,8 @@ import { useFocusEffect } from "@react-navigation/native";
 
 import { useGetChargingSessionsQuery } from "@/charging/charging.api";
 import { isSessionLive } from "@/charging/sessionStatus";
+import { useTabScreenInsets } from "@/hooks/use-tab-screen-insets";
+import { useWebContentPadding } from "@/hooks/use-web-content-padding";
 import { V } from "@/theme/vajra";
 import { IconSymbol } from "components/ui/icon-symbol";
 import { PulsingLiveDot } from "components/vajra/PulsingLiveDot";
@@ -52,10 +55,14 @@ type RecentProps = {
 
 export function RecentContent({
   showHeader = true,
-  topPadding = 40,
+  topPadding,
   withContainer = true,
 }: RecentProps) {
   const router = useRouter();
+  const tabInsets = useTabScreenInsets();
+  const webPadding = useWebContentPadding();
+  const resolvedTop = topPadding ?? tabInsets.top;
+  const listBottom = tabInsets.bottom;
   const {
     data: activeSessions,
     isError: activeError,
@@ -171,7 +178,7 @@ export function RecentContent({
     );
   };
 
-  const content = (
+  const listHeader = (
     <>
       {showHeader ? (
         <View style={styles.titleRow}>
@@ -199,16 +206,7 @@ export function RecentContent({
         </Text>
       ) : null}
 
-      <FlatList
-        data={listSessions}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.list}
-        refreshControl={
-          <RefreshControl refreshing={isFetching} onRefresh={refetch} />
-        }
-        ListHeaderComponent={
-          <>
-            {liveSession && liveFields ? (
+      {liveSession && liveFields ? (
               <View style={styles.liveWrap}>
                 <Text style={styles.sectionLabel}>Live now</Text>
                 <Pressable
@@ -256,9 +254,31 @@ export function RecentContent({
                 Past sessions
               </Text>
             ) : null}
-          </>
-        }
-        ListFooterComponent={
+    </>
+  );
+
+  const content = (
+    <FlatList
+      style={Platform.OS === "web" ? styles.webList : undefined}
+      data={listSessions}
+      keyExtractor={(item) => item.id}
+      contentContainerStyle={[
+        styles.list,
+        Platform.OS === "web"
+          ? {
+              paddingTop: webPadding.scrollPaddingTop,
+              paddingHorizontal: webPadding.paddingHorizontal,
+              width: webPadding.width,
+              alignSelf: webPadding.alignSelf,
+            }
+          : null,
+        { paddingBottom: listBottom },
+      ]}
+      refreshControl={
+        <RefreshControl refreshing={isFetching} onRefresh={refetch} />
+      }
+      ListHeaderComponent={listHeader}
+      ListFooterComponent={
           sessions.length === 0 && !activeError ? (
             <View style={styles.emptyCard}>
               <Text style={styles.emptyText}>No sessions yet.</Text>
@@ -271,17 +291,24 @@ export function RecentContent({
             </View>
           ) : null
         }
-        renderItem={({ item }) => renderSession(item)}
-      />
-    </>
+      renderItem={({ item }) => renderSession(item)}
+    />
   );
 
   if (!withContainer) {
     return content;
   }
 
+  if (Platform.OS === "web") {
+    return (
+      <View style={styles.webPage}>
+        {content}
+      </View>
+    );
+  }
+
   return (
-    <View style={[styles.container, { paddingTop: topPadding }]}>
+    <View style={[styles.container, { paddingTop: resolvedTop }]}>
       {content}
     </View>
   );
@@ -292,11 +319,18 @@ export default function Recent() {
 }
 
 const styles = StyleSheet.create({
+  webPage: {
+    flex: 1,
+    minHeight: 0,
+    backgroundColor: V.pageBg,
+  },
+  webList: {
+    flex: 1,
+  },
   container: {
     flex: 1,
     backgroundColor: V.pageBg,
     paddingHorizontal: V.appPadH,
-    paddingTop: 40,
   },
   header: {
     fontSize: 24,
@@ -372,9 +406,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: V.card,
   },
-  list: {
-    paddingBottom: 128,
-  },
+  list: {},
   sectionLabel: {
     fontSize: 11,
     fontWeight: "700",

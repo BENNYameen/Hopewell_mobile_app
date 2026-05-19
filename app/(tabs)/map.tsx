@@ -12,6 +12,7 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
+import { useTabScreenInsets } from "@/hooks/use-tab-screen-insets";
 
 import type { Charger } from "../../components/maps/types";
 import MapWrapper from "../../components/maps/MapWrapper";
@@ -47,6 +48,7 @@ function toCharger(station: ChargingStationMapItem): Charger | null {
 
 export default function MapScreen() {
   const { height } = useWindowDimensions();
+  const { top, bottom } = useTabScreenInsets();
   const [activeTab, setActiveTab] = useState<StationTab>("all");
   const [selectedStationId, setSelectedStationId] = useState<string | null>(null);
   const [likedStations, setLikedStations] = useState<string[]>([]);
@@ -169,7 +171,7 @@ export default function MapScreen() {
         />
       </View>
 
-      <View style={styles.topOverlay} pointerEvents="box-none">
+      <View style={[styles.topOverlay, { top }]} pointerEvents="box-none">
         <View style={styles.headerRow}>
           <View style={styles.searchCard}>
             <IconSymbol name="search" size={16} color="#6C7CA6" />
@@ -189,7 +191,7 @@ export default function MapScreen() {
         {locationError ? <Text style={styles.locationHint}>{locationError}</Text> : null}
       </View>
 
-      <View style={styles.sheet}>
+      <View style={[styles.sheet, { bottom }]}>
         <View style={styles.sheetTabs}>
           {(["all", "available", "favorites"] as const).map((tab) => (
             <Pressable
@@ -209,7 +211,7 @@ export default function MapScreen() {
 
         <ScrollView
           style={[styles.sheetScroll, { maxHeight: sheetScrollMaxHeight }]}
-          contentContainerStyle={styles.sheetContent}
+          contentContainerStyle={[styles.sheetContent, { paddingBottom: 16 }]}
           showsVerticalScrollIndicator
         >
           {!isLoading && !isFetching && filteredStations.length === 0 ? (
@@ -232,7 +234,9 @@ export default function MapScreen() {
                 style={[styles.stationCard, isSelected && styles.stationCardSelected]}
               >
                 <View style={styles.stationHeader}>
-                  <Text style={styles.stationName}>{station.name}</Text>
+                  <Text style={styles.stationName} numberOfLines={2}>
+                    {station.name}
+                  </Text>
                   <View style={styles.stationActions}>
                     <Pressable
                       onPress={(event) => {
@@ -315,7 +319,7 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     zIndex: 0,
   },
-  topOverlay: { position: "absolute", top: 40, left: 16, right: 16, zIndex: 2 },
+  topOverlay: { position: "absolute", left: 16, right: 16, zIndex: 2 },
   headerRow: { flexDirection: "row", alignItems: "center", gap: 10 },
   searchCard: {
     flex: 1,
@@ -353,7 +357,6 @@ const styles = StyleSheet.create({
     position: "absolute",
     left: 0,
     right: 0,
-    bottom: 0,
     zIndex: 2,
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
@@ -384,8 +387,13 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   stationCardSelected: { borderColor: "#21B3A7", backgroundColor: "#EEF9F8" },
-  stationHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  stationName: { color: "#13233D", fontWeight: "800", fontSize: 14 },
+  stationHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: 8,
+  },
+  stationName: { flex: 1, color: "#13233D", fontWeight: "800", fontSize: 14 },
   stationActions: { flexDirection: "row", alignItems: "center", gap: 8 },
   circleIcon: {
     width: 28,

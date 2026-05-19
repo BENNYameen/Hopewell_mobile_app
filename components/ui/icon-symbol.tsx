@@ -24,6 +24,7 @@ const MAPPING: Partial<Record<IconName, MaterialIconName>> = {
   "heart": "favorite-border",
   "arrow.left": "arrow-back",
   "arrow.right": "arrow-forward",
+  menu: "menu",
   "plus": "add",
   "phone": "phone",
   "email": "email",
@@ -38,6 +39,7 @@ const MAPPING: Partial<Record<IconName, MaterialIconName>> = {
   "house.fill": "home",
   "paperplane.fill": "send",
   "chevron.right": "chevron-right",
+  "chevron.left": "chevron-left",
 };
 
 const FALLBACK_ICON: MaterialIconName = "help-outline";

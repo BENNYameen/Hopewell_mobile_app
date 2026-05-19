@@ -4,6 +4,7 @@
 import { usePathname, useRouter } from "expo-router";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
+import { useWebSidebar } from "@/context/web-sidebar";
 import { V } from "@/theme/vajra";
 import { IconSymbol } from "components/ui/icon-symbol";
 import type { IconName } from "components/ui/icon-names";
@@ -61,17 +62,28 @@ export function WebDashboardSidebar() {
   const router = useRouter();
   const pathname = usePathname();
   const current = activeNavKey(pathname);
+  const { close } = useWebSidebar();
 
   return (
     <View style={styles.aside}>
       <View style={styles.brandRow}>
-        <View style={styles.brandIcon}>
-          <IconSymbol name="bolt.fill" size={17} color="#FFFFFF" />
+        <View style={styles.brandMain}>
+          <View style={styles.brandIcon}>
+            <IconSymbol name="bolt.fill" size={17} color="#FFFFFF" />
+          </View>
+          <View>
+            <Text style={styles.brandTitle}>Vajra Volt</Text>
+            <Text style={styles.brandTag}>CHARGING</Text>
+          </View>
         </View>
-        <View>
-          <Text style={styles.brandTitle}>Vajra Volt</Text>
-          <Text style={styles.brandTag}>CHARGING</Text>
-        </View>
+        <Pressable
+          onPress={close}
+          style={styles.collapseBtn}
+          accessibilityRole="button"
+          accessibilityLabel="Collapse sidebar"
+        >
+          <IconSymbol name="chevron.left" size={22} color={V.bodySecondary} />
+        </Pressable>
       </View>
 
       <View style={styles.nav}>
@@ -112,7 +124,9 @@ export function WebDashboardSidebar() {
 const styles = StyleSheet.create({
   aside: {
     width: 240,
+    height: "100%",
     flexShrink: 0,
+    alignSelf: "stretch",
     backgroundColor: V.card,
     borderRightWidth: 1,
     borderRightColor: V.borderHairline,
@@ -121,9 +135,24 @@ const styles = StyleSheet.create({
   brandRow: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+  },
+  brandMain: {
+    flexDirection: "row",
+    alignItems: "center",
     gap: 10,
-    paddingHorizontal: 20,
-    paddingVertical: 20,
+    flex: 1,
+    minWidth: 0,
+  },
+  collapseBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: V.pageBg,
   },
   brandIcon: {
     width: 36,

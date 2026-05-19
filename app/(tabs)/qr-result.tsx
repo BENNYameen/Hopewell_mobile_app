@@ -3,11 +3,12 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Modal,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
+
+import { TabScreen } from "components/vajra/TabScreen";
 
 import {
   useStartChargingMutation,
@@ -145,12 +146,7 @@ export default function QRResultScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
+    <TabScreen contentContainerStyle={styles.scrollContent}>
         <View style={styles.panel}>
           <Text style={styles.title}>Start charging</Text>
           <Text style={styles.lead}>
@@ -265,7 +261,6 @@ export default function QRResultScreen() {
             </Pressable>
           ) : null}
         </View>
-      </ScrollView>
 
       <Modal
         animationType="fade"
@@ -286,29 +281,21 @@ export default function QRResultScreen() {
           </View>
         </View>
       </Modal>
-    </View>
+    </TabScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: V.pageBg,
-  },
-  scroll: {
-    flex: 1,
-  },
   scrollContent: {
-    paddingBottom: 40,
+    flexGrow: 1,
   },
   panel: {
-    flex: 1,
+    flexGrow: 1,
     backgroundColor: V.card,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     padding: 20,
-    marginTop: 12,
-    minHeight: 520,
+    marginTop: 4,
   },
   title: {
     fontSize: 22,
