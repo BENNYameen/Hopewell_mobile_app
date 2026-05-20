@@ -12,6 +12,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useMarketingLayout } from "@/hooks/use-responsive-layout";
 import { V } from "@/theme/vajra";
 import { HowToChargeGuideBody } from "components/vajra/HowToChargeGuideBody";
+import { HeaderBrand } from "components/vajra/HeaderBrand";
 import { IconSymbol } from "components/ui/icon-symbol";
 
 export default function ChargingGuidePublic() {
@@ -42,10 +43,7 @@ export default function ChargingGuidePublic() {
               style={styles.webBrand}
               onPress={() => router.replace("/(auth)/landing")}
             >
-              <View style={styles.logoCircle}>
-                <IconSymbol name="bolt.fill" size={15} color={V.card} />
-              </View>
-              <Text style={styles.wordmark}>Vajra Volt</Text>
+              <HeaderBrand />
             </Pressable>
             <Pressable
               style={[styles.getStartedPill, isCompact && styles.getStartedPillCompact]}
@@ -138,19 +136,6 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
     flexShrink: 1,
-  },
-  logoCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: V.primary,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  wordmark: {
-    fontSize: 14,
-    fontWeight: "800",
-    color: V.headingDeep,
   },
   getStartedPill: {
     flexDirection: "row",

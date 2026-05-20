@@ -6,6 +6,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { useWebSidebar } from "@/context/web-sidebar";
 import { V } from "@/theme/vajra";
+import { HeaderBrand } from "components/vajra/HeaderBrand";
 import { IconSymbol } from "components/ui/icon-symbol";
 import type { IconName } from "components/ui/icon-names";
 
@@ -68,13 +69,7 @@ export function WebDashboardSidebar() {
     <View style={styles.aside}>
       <View style={styles.brandRow}>
         <View style={styles.brandMain}>
-          <View style={styles.brandIcon}>
-            <IconSymbol name="bolt.fill" size={17} color="#FFFFFF" />
-          </View>
-          <View>
-            <Text style={styles.brandTitle}>Vajra Volt</Text>
-            <Text style={styles.brandTag}>CHARGING</Text>
-          </View>
+          <HeaderBrand variant="sidebar" />
         </View>
         <Pressable
           onPress={close}
@@ -136,13 +131,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 18,
+    gap: 8,
   },
   brandMain: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
     flex: 1,
     minWidth: 0,
   },
@@ -153,26 +146,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: V.pageBg,
-  },
-  brandIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: V.primary,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  brandTitle: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: V.headingDeep,
-  },
-  brandTag: {
-    marginTop: 2,
-    fontSize: 9,
-    fontWeight: "700",
-    letterSpacing: 3,
-    color: V.label,
   },
   nav: {
     flex: 1,

@@ -6,7 +6,8 @@ import { useRouter } from "expo-router";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { MarketingHeroBolt } from "components/vajra/LightningBrandMark";
+import { HeaderBrand } from "components/vajra/HeaderBrand";
+import { MarketingHeroBolt, VajraLogoImage } from "components/vajra/LightningBrandMark";
 import { useMarketingLayout } from "@/hooks/use-responsive-layout";
 import { V } from "@/theme/vajra";
 import { IconSymbol } from "components/ui/icon-symbol";
@@ -89,13 +90,7 @@ export default function LandingScreen() {
         style={[styles.logoPress, isCompact && styles.logoPressCompact]}
         onPress={() => router.replace("/(auth)/landing")}
       >
-        <View style={styles.logoCircle32}>
-          <IconSymbol name="bolt.fill" size={15} color={V.card} />
-        </View>
-        <View>
-          <Text style={styles.wordmark}>Vajra Volt</Text>
-          <Text style={styles.chargingMicro}>CHARGING</Text>
-        </View>
+        <HeaderBrand />
       </Pressable>
 
       <View style={[styles.headerRight, isCompact && styles.headerRightCompact]}>
@@ -310,9 +305,7 @@ export default function LandingScreen() {
           <View style={[styles.footer, { marginHorizontal: -pagePad, paddingHorizontal: pagePad }]}>
             <View style={styles.footerRow}>
               <View style={styles.footerBrand}>
-                <View style={styles.footerLogo}>
-                  <IconSymbol name="bolt.fill" size={12} color={V.card} />
-                </View>
+                <VajraLogoImage size={40} />
                 <Text style={styles.footerBrandText}>Vajra Volt Charging</Text>
               </View>
               <Text style={styles.footerCopy}>
@@ -366,26 +359,6 @@ const styles = StyleSheet.create({
   },
   logoPress: { flexDirection: "row", alignItems: "center", gap: 10 },
   logoPressCompact: { flex: 1, minWidth: 0, flexShrink: 1 },
-  logoCircle32: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: V.primary,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  wordmark: {
-    fontSize: 14,
-    fontWeight: "800",
-    color: V.headingDeep,
-  },
-  chargingMicro: {
-    marginTop: 2,
-    fontSize: 8,
-    fontWeight: "700",
-    color: V.label,
-    letterSpacing: 3,
-  },
   headerRight: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -722,14 +695,6 @@ const styles = StyleSheet.create({
   },
   footerRow: { gap: 12, marginBottom: 14 },
   footerBrand: { flexDirection: "row", alignItems: "center", gap: 8 },
-  footerLogo: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: V.primary,
-    alignItems: "center",
-    justifyContent: "center",
-  },
   footerBrandText: {
     fontSize: 12,
     fontWeight: "700",
