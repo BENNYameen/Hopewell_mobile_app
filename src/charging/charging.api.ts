@@ -1,6 +1,7 @@
 import type { FetchBaseQueryError } from "@reduxjs/toolkit/query/react";
 
 import { api } from "@/api/api";
+import { normalizeChargerStatusResponse } from "@/charging/normalizeChargerStatus";
 
 /** Matches `handlers.ChargerVerifyRequest` / `ChargerStatusResponse` in Vajrabackend. */
 export type VerifyChargerRequest = {
@@ -71,11 +72,19 @@ export const chargingApi = api.injectEndpoints({
       VerifyChargerResponse,
       VerifyChargerRequest
     >({
-      query: (body) => ({
-        url: "/chargers/verify",
-        method: "POST",
-        body,
-      }),
+      async queryFn(body, _api, _extraOptions, baseQuery) {
+        const result = await baseQuery({
+          url: "/chargers/verify",
+          method: "POST",
+          body,
+        });
+        if (result.error) {
+          return { error: result.error as FetchBaseQueryError };
+        }
+        return {
+          data: normalizeChargerStatusResponse(result.data, body),
+        };
+      },
     }),
     /** GET `/chargers/:id/status` — live connector status from Citrine/Hasura cache. */
     getChargerStatus: builder.query<
@@ -87,6 +96,11 @@ export const chargingApi = api.injectEndpoints({
         method: "GET",
         params: { connector_id: connectorId },
       }),
+      transformResponse: (response, _meta, arg) =>
+        normalizeChargerStatusResponse(response, {
+          charger_id: arg.chargerId,
+          connector_id: arg.connectorId ?? 1,
+        }),
     }),
     startCharging: builder.mutation<
       StartChargingResponse,

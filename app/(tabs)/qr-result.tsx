@@ -1,6 +1,8 @@
+import { useFocusEffect } from "@react-navigation/native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Modal,
   Pressable,
   StyleSheet,
@@ -24,30 +26,51 @@ type ParsedPayload = {
   charger_type?: string;
 };
 
+const VERIFY_TIMEOUT_MS = 20_000;
+
+function verifyErrorMessage(err: unknown): string {
+  if (
+    typeof err === "object" &&
+    err &&
+    "data" in err &&
+    (err as { data?: { error?: string } }).data?.error
+  ) {
+    return (
+      (err as { data?: { error?: string } }).data?.error ??
+      "Unable to verify charger."
+    );
+  }
+  if (err instanceof Error && err.message === "VERIFY_TIMEOUT") {
+    return "Verification timed out. Check your connection and try again.";
+  }
+  return "Unable to verify charger.";
+}
+
 export default function QRResultScreen() {
   const router = useRouter();
-  const { payload } = useLocalSearchParams<{ payload?: string }>();
+  const { payload } = useLocalSearchParams<{ payload?: string | string[] }>();
   const [payloadError, setPayloadError] = useState("");
+  const [verifyError, setVerifyError] = useState("");
   const [verified, setVerified] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
   const [startErrorMessage, setStartErrorMessage] = useState("");
   const [showStartError, setShowStartError] = useState(false);
-  const [verifyCharger, { data, isLoading, error }] =
+  const verifySeqRef = useRef(0);
+  const skipFocusVerifyRef = useRef(true);
+  const [verifyCharger, { data, reset: resetVerify }] =
     useVerifyChargerMutation();
   const [startCharging, { isLoading: isStarting }] = useStartChargingMutation();
 
-  const canStartCharging = verified && !!data && data.available;
+  const payloadRaw = Array.isArray(payload) ? payload[0] : payload;
 
   const decodedPayload = useMemo(() => {
-    if (!payload) return "";
-    if (typeof payload === "string") {
-      try {
-        return decodeURIComponent(payload);
-      } catch {
-        return payload;
-      }
+    if (!payloadRaw) return "";
+    try {
+      return decodeURIComponent(payloadRaw);
+    } catch {
+      return payloadRaw;
     }
-    return "";
-  }, [payload]);
+  }, [payloadRaw]);
 
   const parsed = useMemo<ParsedPayload>(() => {
     if (!decodedPayload) return {};
@@ -79,32 +102,96 @@ export default function QRResultScreen() {
     return 1;
   }, [parsed.connector_id]);
 
-  useEffect(() => {
+  const verifiedDetails = useMemo(() => {
+    if (!data) return null;
+    const connectorId = data.connector_id ?? resolvedConnectorFromQr;
+    const stationStatus =
+      data.status?.trim() ||
+      (data.available ? "Available" : "Unavailable");
+    return {
+      chargerId: data.charger_id || parsed.charger_id || "",
+      connectorId,
+      stationStatus,
+    };
+  }, [data, parsed.charger_id, resolvedConnectorFromQr]);
+
+  const verifyKey = `${parsed.charger_id ?? ""}:${resolvedConnectorFromQr}:${decodedPayload}`;
+  const showVerifying = isVerifying;
+  const canStartCharging =
+    verified && !!data && data.available && !showVerifying;
+
+  const runVerification = useCallback(async () => {
+    const seq = ++verifySeqRef.current;
+
     if (!decodedPayload) {
       setPayloadError("Invalid QR payload.");
+      setVerifyError("");
+      setVerified(false);
+      setIsVerifying(false);
       return;
     }
 
     if (!parsed.charger_id) {
       setPayloadError("QR payload missing charger_id.");
+      setVerifyError("");
+      setVerified(false);
+      setIsVerifying(false);
       return;
     }
 
     setPayloadError("");
+    setVerifyError("");
     setVerified(false);
-    verifyCharger({
+    setIsVerifying(true);
+
+    const body = {
       charger_id: parsed.charger_id,
       connector_id: resolvedConnectorFromQr,
-    })
-      .unwrap()
-      .then(() => setVerified(true))
-      .catch(() => setVerified(false));
+    };
+
+    const timeout = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error("VERIFY_TIMEOUT")), VERIFY_TIMEOUT_MS);
+    });
+
+    try {
+      await Promise.race([verifyCharger(body).unwrap(), timeout]);
+      if (seq !== verifySeqRef.current) return;
+      setVerified(true);
+    } catch (err) {
+      if (seq !== verifySeqRef.current) return;
+      setVerified(false);
+      setVerifyError(verifyErrorMessage(err));
+    } finally {
+      if (seq === verifySeqRef.current) {
+        setIsVerifying(false);
+      }
+    }
   }, [
     decodedPayload,
     parsed.charger_id,
     resolvedConnectorFromQr,
     verifyCharger,
   ]);
+
+  useEffect(() => {
+    void runVerification();
+  }, [verifyKey, runVerification]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (skipFocusVerifyRef.current) {
+        skipFocusVerifyRef.current = false;
+        return;
+      }
+
+      void runVerification();
+
+      return () => {
+        verifySeqRef.current += 1;
+        setIsVerifying(false);
+      };
+    }, [runVerification]),
+  );
 
   const handleScanAgain = () => {
     router.replace("/qr");
@@ -124,7 +211,9 @@ export default function QRResultScreen() {
         charger_id: resolvedChargerId,
         connector_id: resolvedConnectorId,
       }).unwrap();
+      resetVerify();
       setVerified(false);
+      setIsVerifying(false);
       setPayloadError("");
       router.replace({
         pathname: "/recent/[id]",
@@ -169,31 +258,29 @@ export default function QRResultScreen() {
           {payloadError ? (
             <Text style={styles.errorText}>{payloadError}</Text>
           ) : null}
-          {error ? (
-            <Text style={styles.errorText}>
-              {"data" in (error as { data?: { error?: string } })
-                ? ((error as { data?: { error?: string } }).data?.error ??
-                  "Unable to verify charger.")
-                : "Unable to verify charger."}
-            </Text>
+          {verifyError ? (
+            <Text style={styles.errorText}>{verifyError}</Text>
           ) : null}
 
-          {isLoading ? (
-            <Text style={styles.statusHint}>Verifying charger…</Text>
+          {showVerifying ? (
+            <View style={styles.verifyingRow}>
+              <ActivityIndicator size="small" color={V.primary} />
+              <Text style={styles.statusHint}>Verifying charger…</Text>
+            </View>
           ) : null}
 
-          {verified && data ? (
+          {verified && data && verifiedDetails && !showVerifying ? (
             <>
               <View style={styles.summary}>
                 <Text style={styles.summaryTitle}>Verified details</Text>
                 <Text style={styles.summaryLine}>
-                  Charger · {data.charger_id}
+                  Charger · {verifiedDetails.chargerId}
                 </Text>
                 <Text style={styles.summaryLine}>
-                  Connector · {data.connector_id}
+                  Connector · {verifiedDetails.connectorId}
                 </Text>
                 <Text style={styles.summaryLine}>
-                  Station status · {data.status}
+                  Station status · {verifiedDetails.stationStatus}
                 </Text>
                 {data.last_seen ? (
                   <Text style={styles.summaryLine}>
@@ -413,9 +500,14 @@ const styles = StyleSheet.create({
   statusStripBodyBad: {
     color: V.error,
   },
+  verifyingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginTop: 8,
+  },
   statusHint: {
-    marginTop: 4,
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: "600",
     color: V.tealBadgeText,
   },
