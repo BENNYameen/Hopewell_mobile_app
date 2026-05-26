@@ -40,6 +40,7 @@ const MAPPING: Partial<Record<IconName, MaterialIconName>> = {
   "paperplane.fill": "send",
   "chevron.right": "chevron-right",
   "chevron.left": "chevron-left",
+  "chevron.down": "expand-more",
 };
 
 const FALLBACK_ICON: MaterialIconName = "help-outline";

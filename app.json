@@ -35,7 +35,8 @@
       "output": "static",
       "favicon": "./assets/images/favicon.png",
       "bundler": "metro",
-      "themeColor": "#21B3A7"
+      "themeColor": "#21B3A7",
+      "viewport": "width=device-width, initial-scale=1, viewport-fit=cover"
     },
     "plugins": [
       "expo-router",

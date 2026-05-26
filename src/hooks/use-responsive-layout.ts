@@ -1,10 +1,27 @@
 import { Platform, useWindowDimensions } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 /** Sidebar width (web shell). */
 export const SIDEBAR_WIDTH = 240;
 
-/** Web shell top bar height when sidebar is collapsed. */
-export const WEB_SHELL_TOP_BAR_HEIGHT = 57;
+/** Inner top bar row height (excluding status-bar inset). */
+export const WEB_SHELL_TOP_BAR_CONTENT_HEIGHT = 56;
+
+/** @deprecated Use `useWebShellTopBarMetrics().totalHeight` */
+export const WEB_SHELL_TOP_BAR_HEIGHT = WEB_SHELL_TOP_BAR_CONTENT_HEIGHT;
+
+/** Status-bar inset + shell top bar — for content offset below `WebShellTopBar`. */
+export function useWebShellTopBarMetrics() {
+  const insets = useSafeAreaInsets();
+  const safeTop = Math.max(insets.top, Platform.OS === "web" ? 12 : 0);
+  const contentHeight = WEB_SHELL_TOP_BAR_CONTENT_HEIGHT;
+
+  return {
+    safeTop,
+    contentHeight,
+    totalHeight: safeTop + contentHeight,
+  };
+}
 
 /** >= expanded: docked sidebar. < expanded: overlay drawer. */
 export const BREAKPOINT_EXPANDED = 1024;

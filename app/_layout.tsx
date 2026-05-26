@@ -6,14 +6,17 @@ import {
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { clearStoredSession, validateStoredSession } from "@/auth/session";
+import { AppThemeProvider } from "@/context/app-theme";
 import { restoreSession } from "@/features/auth/slice";
 import { store } from "@/store";
 import { useAppDispatch } from "@/store/hooks";
 import { Provider } from "react-redux";
 import "../global.css";
 import { useColorScheme } from "../hooks/use-color-scheme";
+import { getVajraColors } from "@/theme/vajra-colors";
 
 function SessionBootstrap() {
   const dispatch = useAppDispatch();
@@ -46,22 +49,54 @@ function SessionBootstrap() {
   return null;
 }
 
-export default function RootLayout() {
+function RootNavigation() {
   const colorScheme = useColorScheme();
+  const palette = getVajraColors(colorScheme);
+  const navigationTheme =
+    colorScheme === "dark"
+      ? {
+          ...DarkTheme,
+          colors: {
+            ...DarkTheme.colors,
+            primary: palette.primary,
+            background: palette.pageBg,
+            card: palette.card,
+            text: palette.headingDeep,
+            border: palette.borderNavy,
+          },
+        }
+      : {
+          ...DefaultTheme,
+          colors: {
+            ...DefaultTheme.colors,
+            primary: palette.primary,
+            background: palette.pageBg,
+            card: palette.card,
+            text: palette.headingDeep,
+            border: palette.borderNavy,
+          },
+        };
 
   return (
-    <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
-      <Provider store={store}>
-        <SessionBootstrap />
-        <Stack>
-          <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-          <Stack.Screen
-            name="(tabs)"
-            options={{ headerShown: false, title: "Explore" }}
-          />
-        </Stack>
-        <StatusBar style="auto" />
-      </Provider>
+    <ThemeProvider value={navigationTheme}>
+      <Stack>
+        <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+        <Stack.Screen name="(tabs)" options={{ headerShown: false, title: "Explore" }} />
+      </Stack>
+      <StatusBar style={colorScheme === "dark" ? "light" : "dark"} />
     </ThemeProvider>
+  );
+}
+
+export default function RootLayout() {
+  return (
+    <SafeAreaProvider>
+      <AppThemeProvider>
+        <Provider store={store}>
+          <SessionBootstrap />
+          <RootNavigation />
+        </Provider>
+      </AppThemeProvider>
+    </SafeAreaProvider>
   );
 }

@@ -24,9 +24,14 @@ export function MobileMap({
   chargers,
   selectedChargerId,
   currentLocation,
+  locationRevision,
+  mapType,
+  zoomCommand,
   onMarkerPress,
 }: MapWrapperProps) {
+  const nativeMapType = mapType === "satellite" ? "satellite" : "standard";
   const mapRef = useRef<MapView | null>(null);
+  const regionRef = useRef<Region>(DEFAULT_REGION);
 
   const initialRegion = useMemo(() => {
     if (currentLocation) {
@@ -55,7 +60,20 @@ export function MobileMap({
       toRegion(currentLocation.latitude, currentLocation.longitude),
       500,
     );
-  }, [currentLocation]);
+  }, [currentLocation, locationRevision]);
+
+  useEffect(() => {
+    if (!zoomCommand || !mapRef.current) return;
+    const region = regionRef.current;
+    const factor = zoomCommand.direction === "in" ? 0.5 : 2;
+    const next = {
+      ...region,
+      latitudeDelta: Math.min(Math.max(region.latitudeDelta * factor, 0.002), 80),
+      longitudeDelta: Math.min(Math.max(region.longitudeDelta * factor, 0.002), 80),
+    };
+    regionRef.current = next;
+    mapRef.current.animateToRegion(next, 200);
+  }, [zoomCommand]);
 
   return (
     <View style={styles.container}>
@@ -64,9 +82,14 @@ export function MobileMap({
         provider={PROVIDER_GOOGLE}
         style={StyleSheet.absoluteFillObject}
         initialRegion={initialRegion}
-        showsCompass
-        showsMyLocationButton
+        mapType={nativeMapType}
+        showsCompass={false}
+        showsMyLocationButton={false}
         showsUserLocation={!!currentLocation}
+        zoomControlEnabled={false}
+        onRegionChangeComplete={(region) => {
+          regionRef.current = region;
+        }}
       >
         {chargers.map((charger) => (
           <Marker

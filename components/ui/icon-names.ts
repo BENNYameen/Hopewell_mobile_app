@@ -13,6 +13,7 @@ export const ICONS = {
   "paperplane.fill": true,
   "chevron.right": true,
   "chevron.left": true,
+  "chevron.down": true,
   "map.fill": true,
   "location.fill": true,
   "arrow.left": true,
