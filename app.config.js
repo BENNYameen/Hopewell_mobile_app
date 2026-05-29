@@ -1,8 +1,15 @@
 require("dotenv").config();
 const { expo } = require("./app.json");
 
+const existingIosGoogleMapsApiKey =
+  expo.ios?.config?.googleMapsApiKey ?? "";
+const existingAndroidGoogleMapsApiKey =
+  expo.android?.config?.googleMaps?.apiKey ?? "";
 const googleMapsApiKey =
-  process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ?? "";
+  process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ||
+  existingIosGoogleMapsApiKey ||
+  existingAndroidGoogleMapsApiKey ||
+  "";
 
 if (
   !googleMapsApiKey &&
@@ -30,7 +37,9 @@ module.exports = {
   android: {
     ...expo.android,
     config: {
+      ...expo.android?.config,
       googleMaps: {
+        ...expo.android?.config?.googleMaps,
         apiKey: googleMapsApiKey,
       },
     },
@@ -39,6 +48,7 @@ module.exports = {
   ios: {
     ...expo.ios,
     config: {
+      ...expo.ios?.config,
       googleMapsApiKey,
     },
   },

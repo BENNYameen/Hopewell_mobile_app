@@ -3,7 +3,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Linking,
   Modal,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
