@@ -37,7 +37,8 @@
       "themeColor": "#1428A0",
       "backgroundColor": "#011A75",
       "name": "VajraEV Charging",
-      "shortName": "VajraEV"
+      "shortName": "VajraEV",
+      "viewport": "width=device-width, initial-scale=1, viewport-fit=cover"
     },
     "plugins": [
       "expo-router",

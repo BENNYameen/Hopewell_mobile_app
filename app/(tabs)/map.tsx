@@ -1,26 +1,32 @@
 import { useFocusEffect } from "@react-navigation/native";
-import * as Location from "expo-location";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Linking,
   Modal,
+  Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   useWindowDimensions,
   View,
 } from "react-native";
-import { useTabScreenInsets } from "@/hooks/use-tab-screen-insets";
+import { useMapScreenLayout } from "@/hooks/use-map-screen-layout";
 
-import type { Charger } from "../../components/maps/types";
+import type { Charger, MapZoomDirection } from "../../components/maps/types";
 import MapWrapper from "../../components/maps/MapWrapper";
+import { MapStationSheet } from "../../components/maps/MapStationSheet";
+import { MapTypeToggle, type MapViewType } from "../../components/maps/MapTypeToggle";
+import { MapZoomControls } from "../../components/maps/MapZoomControls";
 import {
   type ChargingStationMapItem,
   useGetChargersQuery,
 } from "@/charging/stations.api";
 import { IconSymbol } from "components/ui/icon-symbol";
+import {
+  getMapLocation,
+  getMapLocationErrorMessage,
+} from "@/location/mapLocation";
 
 type StationTab = "all" | "available" | "favorites";
 
@@ -48,7 +54,6 @@ function toCharger(station: ChargingStationMapItem): Charger | null {
 
 export default function MapScreen() {
   const { height } = useWindowDimensions();
-  const { top, bottom } = useTabScreenInsets();
   const [activeTab, setActiveTab] = useState<StationTab>("all");
   const [selectedStationId, setSelectedStationId] = useState<string | null>(null);
   const [likedStations, setLikedStations] = useState<string[]>([]);
@@ -56,6 +61,15 @@ export default function MapScreen() {
   const [searchQuery, setSearchQuery] = useState("");
   const [currentLocation, setCurrentLocation] = useState<LocationState | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
+  const { sheetBottomInset, overlayTop } = useMapScreenLayout(!!locationError);
+  const [locationRevision, setLocationRevision] = useState(0);
+  const [isLocating, setIsLocating] = useState(false);
+  const [sheetExpandSignal, setSheetExpandSignal] = useState(0);
+  const [mapType, setMapType] = useState<MapViewType>("default");
+  const [zoomCommand, setZoomCommand] = useState<
+    { direction: MapZoomDirection; id: number } | undefined
+  >();
+  const [sheetHeightPx, setSheetHeightPx] = useState(112);
 
   const {
     data: allStations = [],
@@ -127,24 +141,28 @@ export default function MapScreen() {
   }, []);
 
   const requestCurrentLocation = useCallback(async () => {
+    setIsLocating(true);
     try {
-      const permission = await Location.requestForegroundPermissionsAsync();
-      if (permission.status !== "granted") {
-        setLocationError("Location permission denied. Enable it to center the map.");
+      const result = await getMapLocation();
+      if (!result.ok) {
+        setLocationError(getMapLocationErrorMessage(result.reason));
         return;
       }
 
-      const location = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      });
       setLocationError(null);
-      setCurrentLocation({
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
-      });
-    } catch {
-      setLocationError("Unable to read current location right now.");
+      setCurrentLocation(result.coords);
+      setLocationRevision((value) => value + 1);
+    } finally {
+      setIsLocating(false);
     }
+  }, []);
+
+  useEffect(() => {
+    void requestCurrentLocation();
+  }, [requestCurrentLocation]);
+
+  const revealStationSheet = useCallback(() => {
+    setSheetExpandSignal((value) => value + 1);
   }, []);
 
   const onMarkerPress = useCallback(
@@ -152,11 +170,17 @@ export default function MapScreen() {
       setSelectedStationId(chargerId);
       const station = allStations.find((item) => item.id === chargerId) ?? null;
       setInfoStation(station);
+      revealStationSheet();
     },
-    [allStations],
+    [allStations, revealStationSheet],
   );
 
-  const sheetScrollMaxHeight = Math.min(420, Math.max(240, Math.floor(height * 0.38)));
+  const onZoom = useCallback((direction: MapZoomDirection) => {
+    setZoomCommand((prev) => ({
+      direction,
+      id: (prev?.id ?? 0) + 1,
+    }));
+  }, []);
 
   return (
     <View style={styles.container}>
@@ -165,14 +189,17 @@ export default function MapScreen() {
           chargers={mapChargers}
           selectedChargerId={selectedChargerId}
           currentLocation={currentLocation}
+          mapType={mapType}
+          locationRevision={locationRevision}
+          zoomCommand={zoomCommand}
           isLoading={isLoading || isFetching}
           errorMessage={mapErrorMessage}
           onMarkerPress={onMarkerPress}
         />
       </View>
 
-      <View style={[styles.topOverlay, { top }]} pointerEvents="box-none">
-        <View style={styles.headerRow}>
+      <View style={[styles.topOverlay, { top: overlayTop }]} pointerEvents="box-none">
+        <View style={styles.searchRow}>
           <View style={styles.searchCard}>
             <IconSymbol name="search" size={16} color="#6C7CA6" />
             <TextInput
@@ -182,106 +209,122 @@ export default function MapScreen() {
               onChangeText={setSearchQuery}
               style={styles.searchInput}
             />
+            <Pressable
+              style={[styles.locateInSearch, isLocating && styles.locationButtonBusy]}
+              onPress={requestCurrentLocation}
+              disabled={isLocating}
+              accessibilityRole="button"
+              accessibilityLabel="Locate me"
+            >
+              <IconSymbol name="location.fill" size={18} color="#1A2850" />
+            </Pressable>
           </View>
-          <Pressable style={styles.locationButton} onPress={requestCurrentLocation}>
-            <IconSymbol name="location.fill" size={14} color="#1A2850" />
-            <Text style={styles.locationText}>Locate</Text>
-          </Pressable>
+        </View>
+        <View style={styles.zoomRow}>
+          <MapZoomControls onZoomIn={() => onZoom("in")} onZoomOut={() => onZoom("out")} />
         </View>
         {locationError ? <Text style={styles.locationHint}>{locationError}</Text> : null}
       </View>
 
-      <View style={[styles.sheet, { bottom }]}>
-        <View style={styles.sheetTabs}>
-          {(["all", "available", "favorites"] as const).map((tab) => (
-            <Pressable
-              key={tab}
-              onPress={() => setActiveTab(tab)}
-              style={[styles.sheetTab, activeTab === tab && styles.tabActive]}
-            >
-              <Text
-                style={[styles.sheetTabText, activeTab === tab && styles.sheetTabTextActive]}
-              >
-                {tab === "all" ? "All" : tab === "available" ? "Available" : "Favorites"}
-              </Text>
-              {activeTab === tab ? <View style={styles.tabLine} /> : null}
-            </Pressable>
-          ))}
-        </View>
-
-        <ScrollView
-          style={[styles.sheetScroll, { maxHeight: sheetScrollMaxHeight }]}
-          contentContainerStyle={[styles.sheetContent, { paddingBottom: 16 }]}
-          showsVerticalScrollIndicator
-        >
-          {!isLoading && !isFetching && filteredStations.length === 0 ? (
-            <Text style={styles.emptyText}>No charging stations match the current filters.</Text>
-          ) : null}
-
-          {filteredStations.map((station) => {
-            const isLiked = likedStations.includes(station.id);
-            const isSelected = selectedStationId === station.id;
-            const hasCoordinates =
-              typeof station.latitude === "number" && typeof station.longitude === "number";
-
-            return (
-              <Pressable
-                key={station.id}
-                onPress={() => {
-                  setSelectedStationId(station.id);
-                  setInfoStation(station);
-                }}
-                style={[styles.stationCard, isSelected && styles.stationCardSelected]}
-              >
-                <View style={styles.stationHeader}>
-                  <Text style={styles.stationName} numberOfLines={2}>
-                    {station.name}
-                  </Text>
-                  <View style={styles.stationActions}>
-                    <Pressable
-                      onPress={(event) => {
-                        event.stopPropagation();
-                        toggleLike(station.id);
-                      }}
-                      style={styles.circleIcon}
-                    >
-                      <IconSymbol
-                        name={isLiked ? "heart.fill" : "heart"}
-                        size={14}
-                        color={isLiked ? "#E0586A" : "#6C7CA6"}
-                      />
-                    </Pressable>
-                    <Pressable
-                      style={[styles.circleIcon, !hasCoordinates && styles.circleIconDisabled]}
-                      onPress={(event) => {
-                        event.stopPropagation();
-                        openDirections(station);
-                      }}
-                      disabled={!hasCoordinates}
-                    >
-                      <IconSymbol name="directions" size={14} color="#0F6A6A" />
-                    </Pressable>
-                  </View>
-                </View>
-                <Text style={styles.stationAddress}>{station.address}</Text>
-                <View style={styles.metaRow}>
-                  <Text
-                    style={[
-                      styles.statusBadge,
-                      station.isAvailable
-                        ? styles.statusBadgeAvailable
-                        : styles.statusBadgeUnavailable,
-                    ]}
-                  >
-                    {station.availabilityLabel}
-                  </Text>
-                  <Text style={styles.stationMeta}>{station.connectorSummary}</Text>
-                </View>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
+      <View
+        style={[styles.layerToggleWrap, { bottom: sheetBottomInset + sheetHeightPx + 8 }]}
+        pointerEvents="box-none"
+      >
+        <MapTypeToggle value={mapType} onChange={setMapType} />
       </View>
+
+      <MapStationSheet
+        screenHeight={height}
+        bottomInset={sheetBottomInset}
+        expandSignal={sheetExpandSignal}
+        onHeightChange={setSheetHeightPx}
+        header={
+          <View style={styles.sheetTabs}>
+            {(["all", "available", "favorites"] as const).map((tab) => (
+              <Pressable
+                key={tab}
+                onPress={() => setActiveTab(tab)}
+                style={[styles.sheetTab, activeTab === tab && styles.tabActive]}
+              >
+                <Text
+                  style={[styles.sheetTabText, activeTab === tab && styles.sheetTabTextActive]}
+                >
+                  {tab === "all" ? "All" : tab === "available" ? "Available" : "Favorites"}
+                </Text>
+                {activeTab === tab ? <View style={styles.tabLine} /> : null}
+              </Pressable>
+            ))}
+          </View>
+        }
+      >
+        {!isLoading && !isFetching && filteredStations.length === 0 ? (
+          <Text style={styles.emptyText}>No charging stations match the current filters.</Text>
+        ) : null}
+
+        {filteredStations.map((station) => {
+          const isLiked = likedStations.includes(station.id);
+          const isSelected = selectedStationId === station.id;
+          const hasCoordinates =
+            typeof station.latitude === "number" && typeof station.longitude === "number";
+
+          return (
+            <Pressable
+              key={station.id}
+              onPress={() => {
+                setSelectedStationId(station.id);
+                setInfoStation(station);
+                revealStationSheet();
+              }}
+              style={[styles.stationCard, isSelected && styles.stationCardSelected]}
+            >
+              <View style={styles.stationHeader}>
+                <Text style={styles.stationName} numberOfLines={2}>
+                  {station.name}
+                </Text>
+                <View style={styles.stationActions}>
+                  <Pressable
+                    onPress={(event) => {
+                      event.stopPropagation();
+                      toggleLike(station.id);
+                    }}
+                    style={styles.circleIcon}
+                  >
+                    <IconSymbol
+                      name={isLiked ? "heart.fill" : "heart"}
+                      size={14}
+                      color={isLiked ? "#E0586A" : "#6C7CA6"}
+                    />
+                  </Pressable>
+                  <Pressable
+                    style={[styles.circleIcon, !hasCoordinates && styles.circleIconDisabled]}
+                    onPress={(event) => {
+                      event.stopPropagation();
+                      openDirections(station);
+                    }}
+                    disabled={!hasCoordinates}
+                  >
+                    <IconSymbol name="directions" size={14} color="#0F6A6A" />
+                  </Pressable>
+                </View>
+              </View>
+              <Text style={styles.stationAddress}>{station.address}</Text>
+              <View style={styles.metaRow}>
+                <Text
+                  style={[
+                    styles.statusBadge,
+                    station.isAvailable
+                      ? styles.statusBadgeAvailable
+                      : styles.statusBadgeUnavailable,
+                  ]}
+                >
+                  {station.availabilityLabel}
+                </Text>
+                <Text style={styles.stationMeta}>{station.connectorSummary}</Text>
+              </View>
+            </Pressable>
+          );
+        })}
+      </MapStationSheet>
 
       <Modal
         visible={!!infoStation}
@@ -319,33 +362,45 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     zIndex: 0,
   },
-  topOverlay: { position: "absolute", left: 16, right: 16, zIndex: 2 },
-  headerRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  topOverlay: { position: "absolute", left: 0, right: 0, zIndex: 2, paddingHorizontal: 16 },
+  layerToggleWrap: {
+    position: "absolute",
+    right: 16,
+    zIndex: 3,
+  },
+  searchRow: { width: "100%" },
   searchCard: {
-    flex: 1,
     backgroundColor: "#FFFFFF",
     borderRadius: 16,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
+    paddingVertical: 4,
+    paddingLeft: 12,
+    paddingRight: 4,
     borderWidth: 1,
     borderColor: "rgba(40, 92, 153, 0.12)",
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
+    shadowColor: "#0B2A5E",
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
   },
-  searchInput: { flex: 1, color: "#1A2850", fontWeight: "600" },
-  locationButton: {
-    backgroundColor: "#EAF7F6",
-    borderRadius: 14,
-    paddingHorizontal: 10,
-    paddingVertical: 10,
-    flexDirection: "row",
+  searchInput: { flex: 1, color: "#1A2850", fontWeight: "600", paddingVertical: 10 },
+  locateInSearch: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
     alignItems: "center",
-    gap: 6,
-    borderWidth: 1,
-    borderColor: "rgba(33,179,167,0.3)",
+    justifyContent: "center",
+    backgroundColor: "#EAF7F6",
   },
-  locationText: { color: "#1A2850", fontWeight: "700", fontSize: 12 },
+  locationButtonBusy: { opacity: 0.65 },
+  zoomRow: {
+    marginTop: 10,
+    flexDirection: "row",
+    alignItems: "flex-start",
+  },
   locationHint: {
     marginTop: 8,
     color: "#A42E3B",
@@ -353,29 +408,12 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     paddingHorizontal: 4,
   },
-  sheet: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    zIndex: 2,
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    backgroundColor: "#FFFFFF",
-    paddingTop: 10,
-    shadowColor: "#0B2A5E",
-    shadowOpacity: 0.18,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: -10 },
-    elevation: 16,
-  },
   sheetTabs: { flexDirection: "row", paddingHorizontal: 16, marginBottom: 8 },
   sheetTab: { flex: 1, alignItems: "center", paddingVertical: 8, gap: 6 },
   tabActive: { backgroundColor: "rgba(26,40,80,0.04)", borderRadius: 10 },
   sheetTabText: { color: "#6C7CA6", fontWeight: "700", fontSize: 13 },
   sheetTabTextActive: { color: "#13233D" },
   tabLine: { width: 18, height: 3, borderRadius: 999, backgroundColor: "#21B3A7" },
-  sheetScroll: { paddingHorizontal: 16 },
-  sheetContent: { paddingBottom: 20 },
   emptyText: { textAlign: "center", color: "#6C7CA6", fontWeight: "600", paddingVertical: 24 },
   stationCard: {
     backgroundColor: "#F7FAFF",
@@ -394,7 +432,12 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   stationName: { flex: 1, color: "#13233D", fontWeight: "800", fontSize: 14 },
-  stationActions: { flexDirection: "row", alignItems: "center", gap: 8 },
+  stationActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flexShrink: 0,
+  },
   circleIcon: {
     width: 28,
     height: 28,

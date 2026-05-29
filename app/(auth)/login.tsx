@@ -230,6 +230,8 @@ export default function Login() {
                   onBlur={() => setFocusedField(null)}
                   placeholder="Your full name"
                   placeholderTextColor={V.label}
+                  autoComplete="name"
+                  textContentType="name"
                 />
               </View>
               <View style={styles.inputGroup}>
@@ -243,6 +245,8 @@ export default function Login() {
                   keyboardType="email-address"
                   autoCapitalize="none"
                   autoComplete="email"
+                  textContentType="emailAddress"
+                  importantForAutofill="yes"
                   placeholder="you@example.com"
                   placeholderTextColor={V.label}
                 />

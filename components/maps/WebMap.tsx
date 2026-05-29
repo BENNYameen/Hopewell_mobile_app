@@ -1,7 +1,7 @@
-import { createElement, useEffect, useMemo } from "react";
+import { createElement, useEffect, useMemo, useRef } from "react";
 import { Platform, StyleSheet, View } from "react-native";
 
-import type { MapWrapperProps } from "./types";
+import type { MapViewType, MapWrapperProps } from "./types";
 
 const MAP_MESSAGE_SOURCE = "vajra-volt-map";
 const DEFAULT_CENTER: [number, number] = [12.9716, 77.5946];
@@ -18,7 +18,9 @@ type MapFramePayload = {
     status: string;
   }>;
   center: [number, number];
+  userLocation: { latitude: number; longitude: number } | null;
   selectedChargerId: string | null;
+  mapType: MapViewType;
 };
 
 function buildLeafletFrameHtml(payload: MapFramePayload): string {
@@ -33,6 +35,7 @@ function buildLeafletFrameHtml(payload: MapFramePayload): string {
   <style>
     html, body, #map { margin: 0; padding: 0; width: 100%; height: 100%; }
     .leaflet-container { background: #e8eef5; font-family: system-ui, sans-serif; }
+    .leaflet-popup-content-wrapper, .leaflet-popup-tip { background: #fff; color: #13233D; }
   </style>
 </head>
 <body>
@@ -43,7 +46,16 @@ function buildLeafletFrameHtml(payload: MapFramePayload): string {
       var config = ${config};
       var chargers = config.chargers || [];
       var center = config.center || [12.9716, 77.5946];
+      var userLocation = config.userLocation || null;
       var selectedId = config.selectedChargerId;
+      var mapType = config.mapType || "default";
+      var isSatellite = mapType === "satellite";
+      var tileUrl = isSatellite
+        ? "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+        : "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
+      var tileAttribution = isSatellite
+        ? "Tiles &copy; Esri"
+        : "&copy; OpenStreetMap contributors";
 
       function post(type, id) {
         if (window.parent && window.parent !== window) {
@@ -64,10 +76,18 @@ function buildLeafletFrameHtml(payload: MapFramePayload): string {
           shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
         });
 
-        var map = L.map("map", { zoomControl: true }).setView(center, chargers.length === 1 ? 14 : 12);
-        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-          attribution: "&copy; OpenStreetMap contributors",
-          maxZoom: 19,
+        var map = L.map("map", { zoomControl: false });
+        window.__vajraMap = map;
+
+        window.addEventListener("message", function (event) {
+          var data = event.data;
+          if (!data || data.source !== "${MAP_MESSAGE_SOURCE}") return;
+          if (data.type === "zoomIn") map.zoomIn();
+          if (data.type === "zoomOut") map.zoomOut();
+        });
+        L.tileLayer(tileUrl, {
+          attribution: tileAttribution,
+          maxZoom: isSatellite ? 18 : 19,
         }).addTo(map);
 
         var bounds = [];
@@ -86,15 +106,27 @@ function buildLeafletFrameHtml(payload: MapFramePayload): string {
           });
         });
 
-        if (bounds.length > 1) {
-          map.fitBounds(bounds, { padding: [48, 48], maxZoom: 14 });
-        }
-
-        if (selectedId) {
+        if (userLocation) {
+          var userLatLng = [userLocation.latitude, userLocation.longitude];
+          L.circleMarker(userLatLng, {
+            radius: 10,
+            fillColor: "#2563EB",
+            color: "#FFFFFF",
+            weight: 3,
+            fillOpacity: 0.95,
+          }).addTo(map);
+          map.setView(userLatLng, 14);
+        } else if (selectedId) {
           var selected = chargers.find(function (c) { return c.id === selectedId; });
           if (selected) {
-            map.flyTo([selected.latitude, selected.longitude], 14, { duration: 0.5 });
+            map.setView([selected.latitude, selected.longitude], 14);
           }
+        } else if (bounds.length > 1) {
+          map.fitBounds(bounds, { padding: [48, 48], maxZoom: 14 });
+        } else if (bounds.length === 1) {
+          map.setView(bounds[0], 14);
+        } else {
+          map.setView(center, 12);
         }
 
         setTimeout(function () { map.invalidateSize(); }, 50);
@@ -116,8 +148,12 @@ export function WebMap({
   chargers,
   selectedChargerId,
   currentLocation,
+  locationRevision,
+  mapType,
+  zoomCommand,
   onMarkerPress,
 }: MapWrapperProps) {
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const framePayload = useMemo((): MapFramePayload => {
     const center: [number, number] = currentLocation
       ? [currentLocation.latitude, currentLocation.longitude]
@@ -128,9 +164,11 @@ export function WebMap({
     return {
       chargers,
       center,
+      userLocation: currentLocation,
       selectedChargerId,
+      mapType,
     };
-  }, [chargers, currentLocation, selectedChargerId]);
+  }, [chargers, currentLocation, mapType, selectedChargerId]);
 
   const frameHtml = useMemo(
     () => buildLeafletFrameHtml(framePayload),
@@ -145,9 +183,22 @@ export function WebMap({
         currentLocation
           ? `${currentLocation.latitude},${currentLocation.longitude}`
           : "",
+        String(locationRevision),
+        mapType,
       ].join("|"),
-    [chargers, currentLocation, selectedChargerId],
+    [chargers, currentLocation, locationRevision, mapType, selectedChargerId],
   );
+
+  useEffect(() => {
+    if (Platform.OS !== "web" || !zoomCommand) return;
+    iframeRef.current?.contentWindow?.postMessage(
+      {
+        source: MAP_MESSAGE_SOURCE,
+        type: zoomCommand.direction === "in" ? "zoomIn" : "zoomOut",
+      },
+      "*",
+    );
+  }, [zoomCommand]);
 
   useEffect(() => {
     if (Platform.OS !== "web" || typeof window === "undefined") {
@@ -169,6 +220,7 @@ export function WebMap({
   return (
     <View style={styles.fill}>
       {createElement("iframe", {
+        ref: iframeRef,
         key: frameKey,
         title: "Charging stations map",
         srcDoc: frameHtml,

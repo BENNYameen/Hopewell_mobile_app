@@ -2,18 +2,20 @@
  * Desktop web shell — matches Vite `Layout.tsx` sidebar: brand, 5 nav items, log out.
  */
 import { usePathname, useRouter } from "expo-router";
+import { useMemo } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { useWebSidebar } from "@/context/web-sidebar";
-import { V } from "@/theme/vajra";
+import { useVajraColors } from "@/hooks/use-vajra-colors";
 import { HeaderBrand } from "components/vajra/HeaderBrand";
 import { IconSymbol } from "components/ui/icon-symbol";
 import type { IconName } from "components/ui/icon-names";
 
-type NavKey = "home" | "sessions" | "charge" | "wallet" | "profile";
+type NavKey = "home" | "map" | "sessions" | "charge" | "wallet" | "profile";
 
 const NAV: { key: NavKey; href: string; label: string; icon: IconName }[] = [
   { key: "home", href: "/(tabs)/home", label: "Home", icon: "bolt.fill" },
+  { key: "map", href: "/(tabs)/map", label: "Map", icon: "map.fill" },
   {
     key: "sessions",
     href: "/(tabs)/recent",
@@ -53,6 +55,7 @@ function activeNavKey(pathname: string): NavKey {
   ) {
     return "profile";
   }
+  if (p.includes("/map")) return "map";
   if (p.includes("/recent")) return "sessions";
   if (p.includes("/qr")) return "charge";
   if (p.includes("/home")) return "home";
@@ -64,6 +67,67 @@ export function WebDashboardSidebar() {
   const pathname = usePathname();
   const current = activeNavKey(pathname);
   const { close } = useWebSidebar();
+  const colors = useVajraColors();
+  const styles = useMemo(
+    () =>
+      StyleSheet.create({
+        aside: {
+          width: 240,
+          height: "100%",
+          flexShrink: 0,
+          alignSelf: "stretch",
+          backgroundColor: colors.card,
+          borderRightWidth: 1,
+          borderRightColor: colors.borderHairline,
+          paddingBottom: 16,
+        },
+        brandRow: {
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+          paddingHorizontal: 14,
+          paddingVertical: 18,
+          gap: 8,
+        },
+        brandMain: { flex: 1, minWidth: 0 },
+        collapseBtn: {
+          width: 36,
+          height: 36,
+          borderRadius: 10,
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: colors.pageBg,
+        },
+        nav: { flex: 1, paddingHorizontal: 12, gap: 4 },
+        navItem: {
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 12,
+          paddingVertical: 10,
+          paddingHorizontal: 12,
+          borderRadius: 12,
+        },
+        navItemActive: { backgroundColor: colors.tealMuted },
+        navLabel: { fontSize: 14, fontWeight: "600", color: colors.bodySecondary },
+        navLabelActive: { color: colors.primary, fontWeight: "700" },
+        footer: {
+          borderTopWidth: 1,
+          borderTopColor: colors.borderHairline,
+          paddingHorizontal: 12,
+          paddingTop: 16,
+        },
+        logoutBtn: {
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 10,
+          paddingVertical: 10,
+          paddingHorizontal: 12,
+          borderRadius: 12,
+        },
+        logoutLabel: { fontSize: 14, fontWeight: "600", color: colors.bodySecondary },
+      }),
+    [colors],
+  );
 
   return (
     <View style={styles.aside}>
@@ -77,7 +141,7 @@ export function WebDashboardSidebar() {
           accessibilityRole="button"
           accessibilityLabel="Collapse sidebar"
         >
-          <IconSymbol name="chevron.left" size={22} color={V.bodySecondary} />
+          <IconSymbol name="chevron.left" size={22} color={colors.bodySecondary} />
         </Pressable>
       </View>
 
@@ -93,7 +157,7 @@ export function WebDashboardSidebar() {
               <IconSymbol
                 name={item.icon}
                 size={20}
-                color={on ? V.primary : V.bodySecondary}
+                color={on ? colors.primary : colors.bodySecondary}
               />
               <Text style={[styles.navLabel, on && styles.navLabelActive]}>
                 {item.label}
@@ -108,7 +172,7 @@ export function WebDashboardSidebar() {
           style={styles.logoutBtn}
           onPress={() => router.push("/profile/logout")}
         >
-          <IconSymbol name="arrow.right" size={18} color={V.bodySecondary} />
+          <IconSymbol name="arrow.right" size={18} color={colors.bodySecondary} />
           <Text style={styles.logoutLabel}>Log out</Text>
         </Pressable>
       </View>
@@ -116,79 +180,3 @@ export function WebDashboardSidebar() {
   );
 }
 
-const styles = StyleSheet.create({
-  aside: {
-    width: 240,
-    height: "100%",
-    flexShrink: 0,
-    alignSelf: "stretch",
-    backgroundColor: V.card,
-    borderRightWidth: 1,
-    borderRightColor: V.borderHairline,
-    paddingBottom: 16,
-  },
-  brandRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 14,
-    paddingVertical: 18,
-    gap: 8,
-  },
-  brandMain: {
-    flex: 1,
-    minWidth: 0,
-  },
-  collapseBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: V.pageBg,
-  },
-  nav: {
-    flex: 1,
-    paddingHorizontal: 12,
-    gap: 4,
-  },
-  navItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-  },
-  navItemActive: {
-    backgroundColor: V.tealMuted,
-  },
-  navLabel: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: V.bodySecondary,
-  },
-  navLabelActive: {
-    color: V.primary,
-    fontWeight: "700",
-  },
-  footer: {
-    borderTopWidth: 1,
-    borderTopColor: V.borderHairline,
-    paddingHorizontal: 12,
-    paddingTop: 16,
-  },
-  logoutBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-  },
-  logoutLabel: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: V.bodySecondary,
-  },
-});

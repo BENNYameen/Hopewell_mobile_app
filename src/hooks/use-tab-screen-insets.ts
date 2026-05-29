@@ -33,7 +33,7 @@ export function useTabScreenInsets() {
     : Math.max(insets.bottom, 16);
 
   return {
-    top: insets.top + 8,
+    top: insets.top + 12,
     bottom: tabBarClearance,
     horizontal: V.appPadH,
     footerBottom,

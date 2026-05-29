@@ -21,14 +21,6 @@ export default function MapWrapper(props: MapWrapperProps) {
     );
   }
 
-  if (props.chargers.length === 0) {
-    return (
-      <View style={[styles.full, styles.center]}>
-        <Text style={styles.infoText}>No chargers available for this filter.</Text>
-      </View>
-    );
-  }
-
   return <MobileMap {...props} />;
 }
 
