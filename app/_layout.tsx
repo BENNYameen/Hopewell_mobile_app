@@ -11,6 +11,7 @@ import { clearStoredSession, validateStoredSession } from "@/auth/session";
 import { restoreSession } from "@/features/auth/slice";
 import { store } from "@/store";
 import { useAppDispatch } from "@/store/hooks";
+import { registerPwaServiceWorker } from "@/web/pwa/registerServiceWorker";
 import { Provider } from "react-redux";
 import "../global.css";
 import { useColorScheme } from "../hooks/use-color-scheme";
@@ -48,6 +49,10 @@ function SessionBootstrap() {
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
+
+  useEffect(() => {
+    registerPwaServiceWorker();
+  }, []);
 
   return (
     <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>

@@ -37,6 +37,19 @@ type RazorpayCheckoutOptions = {
   theme: { color: string };
 };
 
+function normalizePaymentError(description: string): string {
+  if (
+    description
+      .toLowerCase()
+      .includes("website does not match registered website")
+  ) {
+    const host =
+      typeof window !== "undefined" ? window.location.origin : "this website";
+    return `Razorpay blocked this payment on web because ${host} is not in your Razorpay allowed websites. Add this domain in Razorpay Dashboard -> Settings -> Checkout -> Allowed websites, or test from your production domain.`;
+  }
+  return description;
+}
+
 function loadRazorpayScript(): Promise<void> {
   if (typeof window === "undefined") {
     return Promise.reject(new Error("Razorpay is only available in a browser"));
@@ -191,7 +204,9 @@ export default function AddMoney() {
             setPaymentStatus("success");
           },
           onError: (description) => {
-            setPaymentError(`Payment failed: ${description}`);
+            setPaymentError(
+              `Payment failed: ${normalizePaymentError(description)}`,
+            );
             setPaymentStatus("failure");
           },
           onDismiss: () => {},

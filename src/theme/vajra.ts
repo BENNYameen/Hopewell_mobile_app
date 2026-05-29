@@ -4,31 +4,31 @@
 
 /** rgba(11, 42, 94 · #0B2A5E) */
 export const V = {
-  primary: "#21B3A7",
-  primaryHover: "#1E9FA3",
-  primaryLight: "#2EC6C9",
-  accentAlt: "#22B9C4",
+  primary: "#1428A0",
+  primaryHover: "#0F1F80",
+  primaryLight: "#2F45C2",
+  accentAlt: "#59E3CF",
 
-  headingDeep: "#0F172A",
-  heading: "#1A2850",
-  headingMuted: "#13233D",
+  headingDeep: "#011A75",
+  heading: "#0A2C9B",
+  headingMuted: "#123DAF",
 
-  bodySecondary: "#6C7CA6",
-  label: "#8B97B2",
-  labelStrong: "#7B8AB0",
+  bodySecondary: "#4A5E9C",
+  label: "#6C7AB0",
+  labelStrong: "#566AA3",
 
-  pageBg: "#F3F6FB",
+  pageBg: "#EEF4FF",
   card: "#FFFFFF",
-  panelTint: "#F7FAFF",
-  darkBlock: "#0F172A",
+  panelTint: "#F4F9FF",
+  darkBlock: "#011A75",
 
-  tealMuted: "rgba(33, 179, 167, 0.12)",
-  tealRing20: "rgba(33, 179, 167, 0.2)",
-  tealBadgeText: "#0F6A6A",
-  successFill: "#E7FBF9",
+  tealMuted: "rgba(23, 184, 255, 0.12)",
+  tealRing20: "rgba(23, 184, 255, 0.2)",
+  tealBadgeText: "#0A4FA8",
+  successFill: "#ECFAFF",
 
-  sessionDoneBg: "#EFF6FF",
-  sessionDoneLabel: "#1E40AF",
+  sessionDoneBg: "#EEF5FF",
+  sessionDoneLabel: "#123DAF",
 
   error: "#C81D2C",
   errorSurface: "#FEF2F2",
@@ -37,17 +37,17 @@ export const V = {
   unavailable: "#E0586A",
 
   /** Card / rules — canonical */
-  borderNavy: "rgba(40, 92, 153, 0.12)",
-  borderNavyMedium: "rgba(40, 92, 153, 0.2)",
-  borderHairline: "rgba(40, 92, 153, 0.08)",
-  borderStepCard: "rgba(40, 92, 153, 0.1)",
+  borderNavy: "rgba(1, 26, 117, 0.12)",
+  borderNavyMedium: "rgba(1, 26, 117, 0.2)",
+  borderHairline: "rgba(1, 26, 117, 0.08)",
+  borderStepCard: "rgba(1, 26, 117, 0.1)",
 
-  tabBarBorder: "rgba(15, 23, 42, 0.08)",
+  tabBarBorder: "rgba(1, 26, 117, 0.1)",
 
-  shadowNavy: "#0B2A5E",
+  shadowNavy: "#011A75",
   /** 0 8px 12px rgba(11, 42, 94, 0.06) */
   shadowCard: {
-    shadowColor: "#0B2A5E",
+    shadowColor: "#011A75",
     shadowOpacity: 0.06,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 8 },
@@ -55,7 +55,7 @@ export const V = {
   },
   /** 0 10px 14px rgba(11, 42, 94, 0.08) */
   shadowCardEmphasis: {
-    shadowColor: "#0B2A5E",
+    shadowColor: "#011A75",
     shadowOpacity: 0.08,
     shadowRadius: 14,
     shadowOffset: { width: 0, height: 10 },
@@ -63,7 +63,7 @@ export const V = {
   },
   /** Feature row landing: 0 4px 8px rgba(11, 42, 94, 0.04) */
   shadowFeature: {
-    shadowColor: "#0B2A5E",
+    shadowColor: "#011A75",
     shadowOpacity: 0.04,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 4 },
@@ -71,7 +71,7 @@ export const V = {
   },
   /** Tab bar: 0 8px 18px rgba(11, 42, 94, 0.12) */
   shadowTabBar: {
-    shadowColor: "#0B2A5E",
+    shadowColor: "#011A75",
     shadowOpacity: 0.12,
     shadowRadius: 18,
     shadowOffset: { width: 0, height: 8 },
@@ -80,7 +80,7 @@ export const V = {
 
   /** @deprecated use shadowCard */
   shadowSoft: {
-    shadowColor: "#0B2A5E",
+    shadowColor: "#011A75",
     shadowOpacity: 0.06,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 8 },
@@ -88,7 +88,7 @@ export const V = {
   },
   /** @deprecated use shadowCardEmphasis */
   shadowMedium: {
-    shadowColor: "#0B2A5E",
+    shadowColor: "#011A75",
     shadowOpacity: 0.08,
     shadowRadius: 14,
     shadowOffset: { width: 0, height: 10 },
@@ -102,7 +102,7 @@ export const V = {
   radiusInput: 14,
   radiusPill: 999,
 
-  focusRing: "rgba(33, 179, 167, 0.4)",
+  focusRing: "rgba(20, 40, 160, 0.4)",
 
   loginColumnMax: 384,
   marketingMax: 1024,
