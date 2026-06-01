@@ -1,10 +1,15 @@
 import { useEffect, useRef, useState } from "react";
-import { StyleSheet, View } from "react-native";
+import { Platform, StyleSheet, View } from "react-native";
 import MapView, {
   Marker,
   PROVIDER_GOOGLE,
+  PROVIDER_DEFAULT,
   type Region,
 } from "react-native-maps";
+
+// iOS: Apple Maps (no API key needed, always renders)
+// Android: Google Maps (API key via app.json android.config.googleMaps.apiKey)
+const MAP_PROVIDER = Platform.OS === "android" ? PROVIDER_GOOGLE : PROVIDER_DEFAULT;
 
 import type { MapWrapperProps } from "./types";
 
@@ -196,7 +201,7 @@ export function MobileMap({
     <View style={styles.container}>
       <MapView
         ref={mapRef}
-        provider={PROVIDER_GOOGLE}
+        provider={MAP_PROVIDER}
         style={StyleSheet.absoluteFillObject}
         initialRegion={
           currentLocation
