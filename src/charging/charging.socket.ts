@@ -22,6 +22,10 @@ export type ChargingUpdate = {
   charger_name?: string;
   duration_sec?: number;
   power_kw?: number;
+  /** Stop reason from the "stopped" event (e.g. "LOW_WALLET_BALANCE", "EVDisconnected") */
+  reason?: string;
+  /** Human-readable message from AUTO_STOP_WALLET_LIMIT_REACHED event */
+  message?: string;
 };
 
 type ChargingSocketState = {

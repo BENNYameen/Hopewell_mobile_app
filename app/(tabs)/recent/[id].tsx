@@ -17,11 +17,26 @@ import {
   useGetChargingSessionQuery,
   useStopChargingMutation,
 } from "@/charging/charging.api";
-import { useChargingSocket } from "@/charging/charging.socket";
+import { useChargingSocket, type ChargingUpdate } from "@/charging/charging.socket";
 import { isSessionLive, sessionStatusLabel } from "@/charging/sessionStatus";
 import { confirmAction, showAlert } from "@/utils/confirmAction";
 import { V } from "@/theme/vajra";
 import { IconSymbol } from "components/ui/icon-symbol";
+
+const STOP_REASON_LABELS: Record<string, string> = {
+  LOW_WALLET_BALANCE: "Wallet spending limit reached",
+  EVDisconnected: "Cable unplugged",
+  Local: "Cable unplugged",
+  Remote: "Charging stopped",
+  EmergencyStop: "Emergency stop triggered",
+  PowerLoss: "Power loss at station",
+  MISSING_STOP_TRANSACTION: "No response from charger",
+  CHARGER_OFFLINE: "Charger went offline",
+  START_TIMEOUT: "Session failed to start",
+};
+
+const getStopReasonLabel = (reason?: string) =>
+  (reason && STOP_REASON_LABELS[reason]) ?? (reason ? "Charging stopped" : "");
 
 const formatDateTime = (value: string | null) => {
   if (!value) {
@@ -81,9 +96,18 @@ export default function SessionDetails() {
   const [stopCharging, { isLoading: isStopping, error: stopError }] =
     useStopChargingMutation();
   const [showStopConfirm, setShowStopConfirm] = useState(false);
+  const [autoStopEvent, setAutoStopEvent] = useState<ChargingUpdate | null>(null);
+  const [stoppedEvent, setStoppedEvent] = useState<ChargingUpdate | null>(null);
+  const [showSessionSummary, setShowSessionSummary] = useState(false);
   const liveEnergy = liveData?.energy_kwh ?? session?.energy_kwh;
   const liveCost = liveData?.cost ?? session?.cost;
-  const liveStatus = liveData?.status ?? session?.status ?? "";
+  // Filter out special informational events that are not session status changes
+  const liveStatusRaw = liveData?.status;
+  const isSpecialEvent =
+    liveStatusRaw === "AUTO_STOP_WALLET_LIMIT_REACHED";
+  const liveStatus = isSpecialEvent
+    ? session?.status ?? ""
+    : (liveStatusRaw ?? session?.status ?? "");
   const liveDurationMin =
     liveData?.duration_sec != null
       ? Math.max(0, Math.round(liveData.duration_sec / 60))
@@ -126,6 +150,18 @@ export default function SessionDetails() {
       animation.stop();
     };
   }, [liveStatus, pulseAnim]);
+  useEffect(() => {
+    if (!liveData) return;
+    if (liveData.status === "AUTO_STOP_WALLET_LIMIT_REACHED") {
+      setAutoStopEvent(liveData);
+    } else if (liveData.status === "stopped") {
+      setStoppedEvent(liveData);
+      setAutoStopEvent(null);
+      setShowSessionSummary(true);
+      refetch();
+    }
+  }, [liveData, refetch]);
+
   const errorStatus =
     typeof error === "object" && error
       ? "status" in error
@@ -304,6 +340,15 @@ export default function SessionDetails() {
         </View>
       </View>
 
+      {autoStopEvent && !showSessionSummary ? (
+        <View style={styles.autoStopBanner}>
+          <IconSymbol name="exclamationmark.triangle.fill" size={15} color={V.error} />
+          <Text style={styles.autoStopBannerText}>
+            Spending limit reached, stopping...
+          </Text>
+        </View>
+      ) : null}
+
       <View style={styles.grid}>
         <View style={styles.gridCard}>
           <Text style={styles.gridLabel}>Energy</Text>
@@ -381,6 +426,72 @@ export default function SessionDetails() {
           </View>
         </Pressable>
       </Pressable>
+    </Modal>
+
+    {/* Session summary bottom sheet — appears when WebSocket sends "stopped" */}
+    <Modal
+      visible={showSessionSummary}
+      transparent
+      animationType="slide"
+      onRequestClose={() => setShowSessionSummary(false)}
+    >
+      <View style={styles.summaryBackdrop}>
+        <View style={styles.summarySheet}>
+          <View style={styles.summarySheetDragBar} />
+
+          <View style={styles.summarySheetHeader}>
+            <View style={styles.summarySheetIconWrap}>
+              <IconSymbol name="bolt.fill" size={28} color={V.primary} />
+            </View>
+            <Text style={styles.summarySheetTitle}>Charging Complete</Text>
+            <Text style={styles.summarySheetSubtitle}>
+              {stoppedEvent?.charger_name ?? session?.charger_id ?? ""}
+            </Text>
+          </View>
+
+          <View style={styles.summaryGrid}>
+            <View style={styles.summaryGridCard}>
+              <Text style={styles.summaryGridLabel}>Energy Used</Text>
+              <Text style={styles.summaryGridValue}>
+                {formatNumber(stoppedEvent?.energy_kwh ?? liveEnergy)} kWh
+              </Text>
+            </View>
+            <View style={styles.summaryGridCard}>
+              <Text style={styles.summaryGridLabel}>Amount Charged</Text>
+              <Text style={styles.summaryGridValue}>
+                ₹{formatNumber(stoppedEvent?.cost ?? liveCost)}
+              </Text>
+            </View>
+            <View style={styles.summaryGridCard}>
+              <Text style={styles.summaryGridLabel}>Duration</Text>
+              <Text style={styles.summaryGridValue}>{durationMin} min</Text>
+            </View>
+            <View style={styles.summaryGridCard}>
+              <Text style={styles.summaryGridLabel}>Wallet Balance</Text>
+              <Text style={styles.summaryGridValue}>
+                {session?.wallet_after != null
+                  ? `₹${formatNumber(session.wallet_after)}`
+                  : "--"}
+              </Text>
+            </View>
+          </View>
+
+          {stoppedEvent?.reason ? (
+            <View style={styles.summaryReasonRow}>
+              <Text style={styles.summaryReasonText}>
+                {getStopReasonLabel(stoppedEvent.reason)}
+              </Text>
+            </View>
+          ) : null}
+
+          <Pressable
+            style={styles.summaryDoneBtn}
+            onPress={() => setShowSessionSummary(false)}
+          >
+            <Text style={styles.summaryDoneText}>Done</Text>
+          </Pressable>
+        </View>
+      </View>
     </Modal>
     </>
   );
@@ -624,5 +735,127 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
     color: V.card,
+  },
+
+  // Auto-stop wallet limit banner
+  autoStopBanner: {
+    marginTop: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: V.errorSurface,
+    borderWidth: 1,
+    borderColor: V.errorBorder,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  autoStopBannerText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: "600",
+    color: V.error,
+  },
+
+  // Session summary bottom sheet
+  summaryBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(11, 18, 39, 0.55)",
+    justifyContent: "flex-end",
+  },
+  summarySheet: {
+    backgroundColor: V.card,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 48,
+    borderTopWidth: 1,
+    borderTopColor: V.borderNavy,
+  },
+  summarySheetDragBar: {
+    alignSelf: "center",
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: V.borderNavyMedium,
+    marginBottom: 20,
+  },
+  summarySheetHeader: {
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  summarySheetIconWrap: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: V.tealMuted,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: V.primary,
+    marginBottom: 12,
+  },
+  summarySheetTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: V.headingDeep,
+  },
+  summarySheetSubtitle: {
+    marginTop: 4,
+    fontSize: 13,
+    fontWeight: "600",
+    color: V.bodySecondary,
+  },
+  summaryGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    marginBottom: 4,
+  },
+  summaryGridCard: {
+    width: "48%",
+    backgroundColor: V.panelTint,
+    borderRadius: V.radiusPanel,
+    padding: 14,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: V.borderNavy,
+  },
+  summaryGridLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: V.label,
+    textTransform: "uppercase",
+    letterSpacing: 1,
+  },
+  summaryGridValue: {
+    marginTop: 8,
+    fontSize: 16,
+    fontWeight: "700",
+    color: V.heading,
+  },
+  summaryReasonRow: {
+    marginBottom: 16,
+    paddingHorizontal: 4,
+    alignItems: "center",
+  },
+  summaryReasonText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: V.bodySecondary,
+    textAlign: "center",
+  },
+  summaryDoneBtn: {
+    backgroundColor: V.primary,
+    paddingVertical: 14,
+    borderRadius: V.radiusPill,
+    alignItems: "center",
+    marginTop: 4,
+  },
+  summaryDoneText: {
+    color: V.card,
+    fontSize: 15,
+    fontWeight: "700",
   },
 });
