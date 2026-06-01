@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
+  Easing,
   Modal,
   Platform,
   Pressable,
@@ -128,6 +129,28 @@ export default function SessionDetails() {
     return getDurationMinutes(session.start_time, session.end_time);
   }, [session?.start_time, session?.end_time, liveDurationMin]);
   const pulseAnim = useRef(new Animated.Value(0)).current;
+  const batteryBarAnim = useRef(new Animated.Value(0)).current;
+  const batteryTextAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    const pct = liveData?.battery_current_percentage ?? 0;
+    Animated.timing(batteryBarAnim, {
+      toValue: pct,
+      duration: 900,
+      useNativeDriver: false,
+      easing: Easing.out(Easing.quad),
+    }).start();
+  }, [liveData?.battery_current_percentage, batteryBarAnim]);
+
+  useEffect(() => {
+    if (!liveBattery) return;
+    batteryTextAnim.setValue(0.3);
+    Animated.timing(batteryTextAnim, {
+      toValue: 1,
+      duration: 500,
+      useNativeDriver: true,
+    }).start();
+  }, [liveBattery, batteryTextAnim]);
 
   useEffect(() => {
     if (!isSessionLive(liveStatus)) {
@@ -382,15 +405,23 @@ export default function SessionDetails() {
         </View>
         <View style={styles.gridCard}>
           <Text style={styles.gridLabel}>Battery</Text>
-          <Text style={styles.gridValue}>{liveBattery ?? "--"}</Text>
-          {liveData?.battery_start_percentage != null &&
-          liveData?.battery_current_percentage != null ? (
+          <Animated.Text style={[styles.gridValue, { opacity: batteryTextAnim }]}>
+            {liveBattery ?? "--"}
+          </Animated.Text>
+          {liveData?.battery_current_percentage != null ? (
             <View style={styles.batteryBar}>
-              <View
+              <Animated.View
                 style={[
                   styles.batteryBarFill,
                   {
-                    width: `${Math.min(100, liveData.battery_current_percentage)}%`,
+                    width: batteryBarAnim.interpolate({
+                      inputRange: [0, 100],
+                      outputRange: ["0%", "100%"],
+                    }),
+                    backgroundColor:
+                      (liveData.battery_current_percentage ?? 0) < 20
+                        ? V.error
+                        : V.primary,
                   },
                 ]}
               />
