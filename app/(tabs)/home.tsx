@@ -129,6 +129,11 @@ export default function HomeDashboard() {
   const dur = liveSession
     ? durationMin(liveSession.start_time, wsData?.duration_sec)
     : 0;
+  const battery =
+    wsData?.battery_display ??
+    (wsData?.battery_current_percentage != null
+      ? `${wsData.battery_current_percentage}%`
+      : null);
 
   const firstName = useMemo(() => {
     const raw = me?.full_name?.trim() ?? "";
@@ -298,6 +303,12 @@ export default function HomeDashboard() {
               <Text style={styles.statLabel}>Cost</Text>
               <Text style={styles.statValue}>₹{cost.toFixed(2)}</Text>
             </View>
+            {battery ? (
+              <View style={styles.statBlock}>
+                <Text style={styles.statLabel}>Battery</Text>
+                <Text style={styles.statValue}>{battery}</Text>
+              </View>
+            ) : null}
           </View>
           <View style={styles.liveActions}>
             <Pressable

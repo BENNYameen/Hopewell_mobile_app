@@ -102,6 +102,11 @@ export default function SessionDetails() {
   const [showSessionSummary, setShowSessionSummary] = useState(false);
   const liveEnergy = liveData?.energy_kwh ?? session?.energy_kwh;
   const liveCost = liveData?.cost ?? session?.cost;
+  const liveBattery =
+    liveData?.battery_display ??
+    (liveData?.battery_current_percentage != null
+      ? `${liveData.battery_current_percentage}%`
+      : null);
   // Filter out special informational events that are not session status changes
   const liveStatusRaw = liveData?.status;
   const isSpecialEvent =
@@ -377,7 +382,20 @@ export default function SessionDetails() {
         </View>
         <View style={styles.gridCard}>
           <Text style={styles.gridLabel}>Battery</Text>
-          <Text style={styles.gridValue}>--</Text>
+          <Text style={styles.gridValue}>{liveBattery ?? "--"}</Text>
+          {liveData?.battery_start_percentage != null &&
+          liveData?.battery_current_percentage != null ? (
+            <View style={styles.batteryBar}>
+              <View
+                style={[
+                  styles.batteryBarFill,
+                  {
+                    width: `${Math.min(100, liveData.battery_current_percentage)}%`,
+                  },
+                ]}
+              />
+            </View>
+          ) : null}
         </View>
       </View>
 
@@ -640,6 +658,18 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
     color: V.heading,
+  },
+  batteryBar: {
+    marginTop: 8,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: V.borderNavy,
+    overflow: "hidden",
+  },
+  batteryBarFill: {
+    height: "100%",
+    borderRadius: 2,
+    backgroundColor: V.primary,
   },
   detailCard: {
     backgroundColor: V.card,
