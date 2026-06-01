@@ -1,6 +1,7 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Animated,
   Modal,
   Platform,
@@ -277,7 +278,17 @@ export default function SessionDetails() {
           <Text style={styles.topTitle} numberOfLines={1}>
             Session details
           </Text>
-          <View style={styles.topBarSpacer} />
+          <Pressable
+            onPress={refetch}
+            style={styles.backBtn}
+            disabled={isFetching}
+          >
+            {isFetching ? (
+              <ActivityIndicator size="small" color={V.primary} />
+            ) : (
+              <IconSymbol name="arrow.clockwise" size={16} color={V.headingDeep} />
+            )}
+          </Pressable>
         </View>
       }
     >
@@ -507,9 +518,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     marginBottom: 16,
-  },
-  topBarSpacer: {
-    flex: 1,
   },
   topTitle: {
     flex: 1,
