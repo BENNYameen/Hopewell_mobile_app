@@ -97,7 +97,7 @@ export default function TabLayout() {
 
   return (
     <Tabs
-      initialRouteName="home"
+      initialRouteName="qr"
       screenOptions={{
         headerShown: false,
         lazy: true,
@@ -136,9 +136,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="home"
         options={{
-          tabBarIcon: ({ color, focused }) => (
-            <TabIcon focused={focused} color={color} name="bolt.fill" />
-          ),
+          href: null,
         }}
       />
       <Tabs.Screen

@@ -62,28 +62,45 @@ async function getWebMapLocation(): Promise<MapLocationResult> {
 
 async function getNativeMapLocation(): Promise<MapLocationResult> {
   const permission = await Location.requestForegroundPermissionsAsync();
+  console.log("[Location] permission status:", permission.status);
+
   if (permission.status !== "granted") {
+    console.warn("[Location] permission denied");
     return { ok: false, reason: "denied" };
   }
 
   const enabled = await Location.hasServicesEnabledAsync();
+  console.log("[Location] services enabled:", enabled);
+
   if (!enabled) {
+    console.warn("[Location] location services are off");
     return { ok: false, reason: "unavailable" };
   }
 
   try {
+    // Use High accuracy so real devices use GPS rather than WiFi/cell triangulation.
+    // NOTE: on the iOS Simulator this returns whatever location Xcode has configured
+    // (default: Apple HQ, Cupertino CA ~37.33°N 122.01°W). To test with a real
+    // location open Xcode → Simulator → Features → Location → Custom Location
+    // and enter Coimbatore: latitude 11.0168, longitude 76.9558.
     const position = await Location.getCurrentPositionAsync({
-      accuracy: Location.Accuracy.Balanced,
+      accuracy: Location.Accuracy.High,
     });
 
-    return {
-      ok: true,
-      coords: {
-        latitude: position.coords.latitude,
-        longitude: position.coords.longitude,
-      },
+    const coords = {
+      latitude: position.coords.latitude,
+      longitude: position.coords.longitude,
     };
-  } catch {
+
+    console.log(
+      `[Location] resolved coords: lat=${coords.latitude.toFixed(5)}, lng=${coords.longitude.toFixed(5)}`,
+      `| accuracy: ${position.coords.accuracy?.toFixed(0)}m`,
+      `| source: ${__DEV__ ? "dev build" : "production"}`,
+    );
+
+    return { ok: true, coords };
+  } catch (err) {
+    console.error("[Location] getCurrentPositionAsync failed:", err);
     return { ok: false, reason: "unavailable" };
   }
 }

@@ -50,7 +50,7 @@ export default function AuthLayout() {
     ) {
       return <Stack screenOptions={{ headerShown: false }} />;
     }
-    return <Redirect href="/(tabs)/home" />;
+    return <Redirect href="/(tabs)/qr" />;
   }
 
   return <Stack screenOptions={{ headerShown: false }} />;

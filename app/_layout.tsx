@@ -6,10 +6,10 @@ import {
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { clearStoredSession, validateStoredSession } from "@/auth/session";
-import { AppThemeProvider } from "@/context/app-theme";
 import { restoreSession } from "@/features/auth/slice";
 import { store } from "@/store";
 import { useAppDispatch } from "@/store/hooks";
@@ -95,13 +95,13 @@ function RootNavigation() {
 
 export default function RootLayout() {
   return (
-    <SafeAreaProvider>
-      <AppThemeProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
         <Provider store={store}>
           <SessionBootstrap />
           <RootNavigation />
         </Provider>
-      </AppThemeProvider>
-    </SafeAreaProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }

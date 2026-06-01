@@ -1,7 +1,8 @@
 import { useRouter } from "expo-router";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Animated,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -41,18 +42,33 @@ export default function Login() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
+  const [otpFocused, setOtpFocused] = useState(false);
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [focusedField, setFocusedField] = useState<
-    "name" | "email" | "otp" | null
-  >(null);
+  const [focusedField, setFocusedField] = useState<"name" | "email" | null>(null);
+  const otpInputRef = useRef<TextInput>(null);
+  const cursorAnim = useRef(new Animated.Value(1)).current;
 
   const emailValid = useMemo(
     () => email.trim().includes("@") && email.trim().length >= 5,
     [email],
   );
   const nameValid = useMemo(() => name.trim().length >= 2, [name]);
-  const otpValid = useMemo(() => otp.trim().length >= 4, [otp]);
+  const otpValid = otp.length === 6;
+
+  const handleOtpChange = (text: string) => {
+    const digits = text.replace(/[^0-9]/g, "").slice(0, 6);
+    setOtp(digits);
+  };
+
+  const startCursorBlink = () => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(cursorAnim, { toValue: 0, duration: 500, useNativeDriver: true }),
+        Animated.timing(cursorAnim, { toValue: 1, duration: 500, useNativeDriver: true }),
+      ])
+    ).start();
+  };
 
   const sendOtp = async () => {
     setError("");
@@ -79,9 +95,10 @@ export default function Login() {
         throw new Error(payload?.message ?? payload?.error ?? "Failed to send OTP.");
       }
       if (typeof payload?.otp === "string" && payload.otp.length > 0) {
-        setOtp(payload.otp);
+        setOtp(payload.otp.replace(/[^0-9]/g, "").slice(0, 6));
       }
       setStep("otp");
+      setTimeout(() => otpInputRef.current?.focus(), 100);
     } catch (err) {
       console.error(err);
       const hint =
@@ -126,7 +143,7 @@ export default function Login() {
       await storage.setItemAsync(USER_NAME_KEY, name.trim());
       await storage.setItemAsync(USER_EMAIL_KEY, normEmail);
       dispatch(loginSuccess());
-      router.replace("/(tabs)/home");
+      router.replace("/(tabs)/qr");
     } catch (err) {
       setError(
         err instanceof Error
@@ -138,7 +155,7 @@ export default function Login() {
     }
   };
 
-  const inputStyle = (field: "name" | "email" | "otp") => [
+  const inputStyle = (field: "name" | "email") => [
     styles.input,
     focusedField === field && styles.inputFocused,
   ];
@@ -263,17 +280,45 @@ export default function Login() {
                 .
               </Text>
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Code</Text>
-                <TextInput
-                  value={otp}
-                  onChangeText={setOtp}
-                  style={inputStyle("otp")}
-                  onFocus={() => setFocusedField("otp")}
-                  onBlur={() => setFocusedField(null)}
-                  keyboardType="number-pad"
-                  placeholder="4-6 digit code"
-                  placeholderTextColor={V.label}
-                />
+                <Text style={styles.inputLabel}>6-digit code</Text>
+                <Pressable
+                  style={styles.otpRow}
+                  onPress={() => otpInputRef.current?.focus()}
+                >
+                  {/* Hidden input captures all typing and paste */}
+                  <TextInput
+                    ref={otpInputRef}
+                    value={otp}
+                    onChangeText={handleOtpChange}
+                    keyboardType="number-pad"
+                    textContentType="oneTimeCode"
+                    autoComplete="one-time-code"
+                    onFocus={() => { setOtpFocused(true); startCursorBlink(); }}
+                    onBlur={() => { setOtpFocused(false); cursorAnim.stopAnimation(); }}
+                    style={styles.otpHiddenInput}
+                    caretHidden
+                  />
+                  {[0, 1, 2, 3, 4, 5].map((i) => {
+                    const char = otp[i] ?? "";
+                    const isActive = otpFocused && i === otp.length && otp.length < 6;
+                    return (
+                      <View
+                        key={i}
+                        style={[
+                          styles.otpBox,
+                          char !== "" && styles.otpBoxFilled,
+                          isActive && styles.otpBoxActive,
+                        ]}
+                      >
+                        {char !== "" ? (
+                          <Text style={styles.otpDigitText}>{char}</Text>
+                        ) : isActive ? (
+                          <Animated.View style={[styles.otpCursor, { opacity: cursorAnim }]} />
+                        ) : null}
+                      </View>
+                    );
+                  })}
+                </Pressable>
               </View>
               <Pressable
                 style={{ alignSelf: "stretch" }}
@@ -429,6 +474,47 @@ const styles = StyleSheet.create({
   inputFocused: {
     borderColor: V.focusRing,
     borderWidth: 2,
+  },
+  otpRow: {
+    flexDirection: "row",
+    gap: 10,
+    alignSelf: "stretch",
+  },
+  otpHiddenInput: {
+    position: "absolute",
+    width: 1,
+    height: 1,
+    opacity: 0,
+  },
+  otpBox: {
+    flex: 1,
+    height: 56,
+    backgroundColor: V.pageBg,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: V.borderNavyMedium,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  otpBoxFilled: {
+    borderColor: V.primary,
+    borderWidth: 2,
+    backgroundColor: V.tealMuted,
+  },
+  otpBoxActive: {
+    borderColor: V.primary,
+    borderWidth: 2,
+  },
+  otpDigitText: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: V.headingDeep,
+  },
+  otpCursor: {
+    width: 2,
+    height: 24,
+    borderRadius: 1,
+    backgroundColor: V.primary,
   },
   secondaryLink: {
     fontSize: 12,
