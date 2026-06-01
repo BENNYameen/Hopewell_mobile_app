@@ -24,11 +24,7 @@ if (
 module.exports = {
   ...expo,
 
-  plugins: [
-    ...(expo.plugins ?? []),
-    "expo-font",
-    ["react-native-maps", { googleMapsApiKey }],
-  ],
+  plugins: [...(expo.plugins ?? []), "expo-font"],
 
   extra: {
     ...expo.extra,
