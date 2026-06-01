@@ -1,33 +1,35 @@
 import { StyleSheet, Text, View } from "react-native";
 
+
 import { MobileMap } from "./MobileMap";
 import type { MapWrapperProps } from "./types";
 
 export default function MapWrapper(props: MapWrapperProps) {
-  if (props.isLoading) {
-    return (
-      <View style={[styles.full, styles.center]}>
-        <Text style={styles.infoText}>Loading charging stations...</Text>
-      </View>
-    );
-  }
-
-  if (props.errorMessage) {
-    return (
-      <View style={[styles.full, styles.center]}>
-        <Text style={styles.errorTitle}>Map unavailable</Text>
-        <Text style={styles.errorBody}>{props.errorMessage}</Text>
-      </View>
-    );
-  }
-
-  return <MobileMap {...props} />;
+  // Always render the map so it initialises immediately.
+  // Charger data arriving later triggers fitToCoordinates inside MobileMap.
+  return (
+    <View style={styles.full}>
+      <MobileMap {...props} />
+      {props.errorMessage ? (
+        <View style={[styles.banner, styles.errorBanner]}>
+          <Text style={styles.bannerText}>{props.errorMessage}</Text>
+        </View>
+      ) : null}
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
-  full: { flex: 1, width: "100%", height: "100%", backgroundColor: "#F3F6FB" },
-  center: { alignItems: "center", justifyContent: "center", paddingHorizontal: 24 },
-  infoText: { color: "#1A2850", fontSize: 15, fontWeight: "600", textAlign: "center" },
-  errorTitle: { color: "#A42E3B", fontSize: 17, fontWeight: "800", marginBottom: 8 },
-  errorBody: { color: "#1A2850", fontSize: 14, textAlign: "center" },
+  full: { flex: 1, width: "100%", height: "100%" },
+  banner: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    zIndex: 10,
+  },
+  errorBanner: { backgroundColor: "rgba(164,46,59,0.9)" },
+  bannerText: { color: "#fff", fontSize: 13, fontWeight: "700", textAlign: "center" },
 });
