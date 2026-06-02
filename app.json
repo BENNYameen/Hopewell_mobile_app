@@ -13,6 +13,9 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.vajraev.app",
       "buildNumber": "2",
+      "config": {
+        "googleMapsApiKey": "AIzaSyA0v552OPIz3EwyC_tzSwduP9Ua9vTxC8sx"
+      },
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "We use your location to find nearby EV chargers.",
         "NSCameraUsageDescription": "We use your camera to scan charger QR codes."
@@ -21,6 +24,11 @@
     "android": {
       "versionCode": 2,
       "permissions": ["CAMERA", "ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION"],
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyA0v552OPIz3EwyC_tzSwduP9Ua9vTxC8sx"
+        }
+      },
       "adaptiveIcon": {
         "backgroundColor": "#011A75",
         "foregroundImage": "./assets/images/android-icon-foreground.png",

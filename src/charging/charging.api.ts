@@ -40,6 +40,9 @@ export type ChargingSession = {
   stop_requested_at?: string;
   stop_poll_claimed_at?: string;
   billed_at?: string;
+  wallet_before?: number;
+  wallet_after?: number;
+  reason?: string;
 };
 
 type StartChargingRequest = {

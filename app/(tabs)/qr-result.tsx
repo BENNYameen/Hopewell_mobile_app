@@ -17,7 +17,10 @@ import {
   useStartChargingMutation,
   useVerifyChargerMutation,
 } from "@/charging/charging.api";
+import { useGetWalletBalanceQuery } from "@/wallet/wallet.api";
 import { V } from "@/theme/vajra";
+
+const MIN_WALLET_BALANCE = 100;
 
 type ParsedPayload = {
   charger_id?: string;
@@ -61,6 +64,10 @@ export default function QRResultScreen() {
   const [verifyCharger, { data, reset: resetVerify }] =
     useVerifyChargerMutation();
   const [startCharging, { isLoading: isStarting }] = useStartChargingMutation();
+  const {
+    data: walletData,
+    isLoading: walletIsLoading,
+  } = useGetWalletBalanceQuery();
 
   const payloadRaw = Array.isArray(payload) ? payload[0] : payload;
 
@@ -118,8 +125,11 @@ export default function QRResultScreen() {
 
   const verifyKey = `${parsed.charger_id ?? ""}:${resolvedConnectorFromQr}:${decodedPayload}`;
   const showVerifying = isVerifying;
+  const hasEnoughBalance =
+    walletData != null && walletData.balance >= MIN_WALLET_BALANCE;
   const canStartCharging =
-    verified && !!data && data.available && !showVerifying;
+    verified && !!data && data.available && !showVerifying &&
+    !walletIsLoading && hasEnoughBalance;
 
   const runVerification = useCallback(async () => {
     const seq = ++verifySeqRef.current;
@@ -337,6 +347,32 @@ export default function QRResultScreen() {
                 </Text>
               </View>
             </>
+          ) : null}
+
+          {/* Wallet balance check — shown once charger is verified */}
+          {verified && data && data.available && !showVerifying ? (
+            walletIsLoading ? (
+              <View style={styles.walletCheckingRow}>
+                <ActivityIndicator size="small" color={V.primary} />
+                <Text style={styles.walletCheckingText}>Checking wallet balance…</Text>
+              </View>
+            ) : walletData != null && !hasEnoughBalance ? (
+              <View style={styles.walletWarning}>
+                <Text style={styles.walletWarningTitle}>
+                  Insufficient wallet balance
+                </Text>
+                <Text style={styles.walletWarningBody}>
+                  Your balance is ₹{walletData.balance.toFixed(2)}. You need at
+                  least ₹{MIN_WALLET_BALANCE} to start charging.
+                </Text>
+                <Pressable
+                  style={styles.addMoneyBtn}
+                  onPress={() => router.push("/profile/add-money")}
+                >
+                  <Text style={styles.addMoneyText}>Add money</Text>
+                </Pressable>
+              </View>
+            ) : null
           ) : null}
 
           {canStartCharging ? (
@@ -562,6 +598,52 @@ const styles = StyleSheet.create({
   modalButtonText: {
     color: "#FFFFFF",
     fontSize: 12,
+    fontWeight: "700",
+  },
+
+  // Wallet balance check states
+  walletCheckingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginTop: 14,
+  },
+  walletCheckingText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: V.bodySecondary,
+  },
+  walletWarning: {
+    marginTop: 14,
+    backgroundColor: V.errorSurface,
+    borderWidth: 1,
+    borderColor: V.errorBorder,
+    borderRadius: V.radiusPanel,
+    padding: 14,
+  },
+  walletWarningTitle: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: V.error,
+    marginBottom: 6,
+  },
+  walletWarningBody: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: V.error,
+    lineHeight: 18,
+    marginBottom: 12,
+  },
+  addMoneyBtn: {
+    alignSelf: "flex-start",
+    backgroundColor: V.primary,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: V.radiusPill,
+  },
+  addMoneyText: {
+    color: V.card,
+    fontSize: 13,
     fontWeight: "700",
   },
 });

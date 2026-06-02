@@ -24,6 +24,20 @@ export type ChargingUpdate = {
   charger_name?: string;
   duration_sec?: number;
   power_kw?: number;
+  /** Stop reason from the "stopped" event (e.g. "LOW_WALLET_BALANCE", "EVDisconnected") */
+  reason?: string;
+  /** Human-readable message from AUTO_STOP_WALLET_LIMIT_REACHED event */
+  message?: string;
+  /** Event type discriminator (e.g. "session_update") */
+  type?: string;
+  /** Wallet amount reserved for this session */
+  reserved_amount?: number;
+  /** SoC at session start — null when charger doesn't report SoC */
+  battery_start_percentage?: number | null;
+  /** Current SoC — null when charger doesn't report SoC */
+  battery_current_percentage?: number | null;
+  /** Pre-formatted SoC string from backend, e.g. "33% → 65%" */
+  battery_display?: string | null;
 };
 
 type ChargingSocketState = {

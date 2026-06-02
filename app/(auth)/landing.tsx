@@ -2,9 +2,9 @@
  * Marketing landing — parity with Vajra web `src/pages/LandingPage.tsx`
  * (canonical until PNGs exist in design-screenshots).
  */
-import { useRouter } from "expo-router";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { Redirect, useRouter } from "expo-router";
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { HeaderBrand } from "components/vajra/HeaderBrand";
 import { MarketingHeroBolt, VajraLogoImage } from "components/vajra/LightningBrandMark";
@@ -66,6 +66,7 @@ const STATS = [
 
 export default function LandingScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const {
     width,
     isCompact,
@@ -75,6 +76,10 @@ export default function LandingScreen() {
     pagePad,
     showHeaderNav,
   } = useMarketingLayout();
+
+  if (Platform.OS !== "web") {
+    return <Redirect href="/(auth)/login" />;
+  }
   const contentW = Math.min(width, V.marketingMax);
 
   const HeaderInner = (
@@ -119,21 +124,21 @@ export default function LandingScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.safe} edges={["top"]}>
-      <ScrollView
-        stickyHeaderIndices={[0]}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollRoot}
+    <View style={[styles.safe, { paddingTop: insets.top }]}>
+      <View
+        style={[
+          styles.stickyHeader,
+          isDesktopWeb && styles.stickyHeaderDesktopWeb,
+        ]}
       >
-        <View
-          style={[
-            styles.stickyHeader,
-            isDesktopWeb && styles.stickyHeaderDesktopWeb,
-          ]}
-        >
-          {HeaderInner}
-        </View>
+        {HeaderInner}
+      </View>
 
+      <ScrollView
+        style={styles.scrollView}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[styles.scrollRoot, { paddingBottom: Math.max(insets.bottom, 40) }]}
+      >
         <View
           style={[
             styles.column,
@@ -315,13 +320,14 @@ export default function LandingScreen() {
           </View>
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: V.pageBg },
-  scrollRoot: { paddingBottom: 40, width: "100%" },
+  scrollView: { flex: 1 },
+  scrollRoot: {},
   stickyHeader: {
     zIndex: 10,
     elevation: 8,

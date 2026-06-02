@@ -4,9 +4,11 @@
  */
 import { useRouter } from "expo-router";
 import Constants from "expo-constants";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Animated,
+  Easing,
   Image,
   Modal,
   Platform,
@@ -81,6 +83,7 @@ export default function HomeDashboard() {
   } = useGetChargersQuery();
   const {
     live,
+    wsData,
     refetch: refetchActive,
     isFetching,
     isLoading,
@@ -121,6 +124,34 @@ export default function HomeDashboard() {
   const cost = live?.cost ?? 0;
   const dur = live?.durationMin ?? 0;
   const wsConnected = live?.wsConnected ?? false;
+  const battery =
+    wsData?.battery_display ??
+    (wsData?.battery_current_percentage != null
+      ? `${wsData.battery_current_percentage}%`
+      : null);
+
+  const homeBatteryBarAnim = useRef(new Animated.Value(0)).current;
+  const homeBatteryTextAnim = useRef(new Animated.Value(1)).current;
+
+  const batteryPct = wsData?.battery_current_percentage ?? null;
+  useEffect(() => {
+    Animated.timing(homeBatteryBarAnim, {
+      toValue: batteryPct ?? 0,
+      duration: 900,
+      useNativeDriver: false,
+      easing: Easing.out(Easing.quad),
+    }).start();
+  }, [batteryPct, homeBatteryBarAnim]);
+
+  useEffect(() => {
+    if (!battery) return;
+    homeBatteryTextAnim.setValue(0.3);
+    Animated.timing(homeBatteryTextAnim, {
+      toValue: 1,
+      duration: 500,
+      useNativeDriver: true,
+    }).start();
+  }, [battery, homeBatteryTextAnim]);
 
   const firstName = useMemo(() => {
     const raw = me?.full_name?.trim() ?? "";
@@ -284,6 +315,36 @@ export default function HomeDashboard() {
               <Text style={styles.statValue}>₹{cost.toFixed(2)}</Text>
             </View>
           </View>
+
+          {battery ? (
+            <View style={styles.batterySection}>
+              <View style={styles.batterySectionHeader}>
+                <Text style={styles.batterySectionLabel}>Battery</Text>
+                <Animated.Text
+                  style={[styles.batterySectionValue, { opacity: homeBatteryTextAnim }]}
+                >
+                  {battery}
+                </Animated.Text>
+              </View>
+              <View style={styles.batteryTrack}>
+                <Animated.View
+                  style={[
+                    styles.batteryFill,
+                    {
+                      width: homeBatteryBarAnim.interpolate({
+                        inputRange: [0, 100],
+                        outputRange: ["0%", "100%"],
+                      }),
+                      backgroundColor:
+                        (wsData?.battery_current_percentage ?? 0) < 20
+                          ? colors.error
+                          : colors.primary,
+                    },
+                  ]}
+                />
+              </View>
+            </View>
+          ) : null}
           <View style={styles.liveActions}>
             <Pressable
               style={styles.btnOutline}
@@ -576,6 +637,37 @@ const createHomeStyles = (V: VajraColors) =>
     fontSize: 14,
     fontWeight: "700",
     color: V.heading,
+  },
+  batterySection: {
+    marginTop: 14,
+  },
+  batterySectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 6,
+  },
+  batterySectionLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: V.label,
+    textTransform: "uppercase",
+    letterSpacing: 1,
+  },
+  batterySectionValue: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: V.heading,
+  },
+  batteryTrack: {
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: V.borderNavy,
+    overflow: "hidden",
+  },
+  batteryFill: {
+    height: "100%",
+    borderRadius: 3,
   },
   liveActions: {
     flexDirection: "row",

@@ -73,6 +73,7 @@ export function useLiveChargingSession(
   return {
     live,
     activeSession,
+    wsData,
     refetch,
     isFetching,
     isLoading,
