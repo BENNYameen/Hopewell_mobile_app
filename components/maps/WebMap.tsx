@@ -21,6 +21,7 @@ type MapFramePayload = {
   userLocation: { latitude: number; longitude: number } | null;
   selectedChargerId: string | null;
   mapType: MapViewType;
+  route: { coordinates: Array<{ latitude: number; longitude: number }> } | null;
 };
 
 function buildLeafletFrameHtml(payload: MapFramePayload): string {
@@ -48,6 +49,7 @@ function buildLeafletFrameHtml(payload: MapFramePayload): string {
       var center = config.center || [12.9716, 77.5946];
       var userLocation = config.userLocation || null;
       var selectedId = config.selectedChargerId;
+      var route = config.route || null;
       var mapType = config.mapType || "default";
       var isSatellite = mapType === "satellite";
       var tileUrl = isSatellite
@@ -115,7 +117,25 @@ function buildLeafletFrameHtml(payload: MapFramePayload): string {
             weight: 3,
             fillOpacity: 0.95,
           }).addTo(map);
-          map.setView(userLatLng, 14);
+        }
+
+        if (route && route.coordinates && route.coordinates.length > 1) {
+          var routeLatLngs = route.coordinates.map(function (c) {
+            return [c.latitude, c.longitude];
+          });
+          L.polyline(routeLatLngs, {
+            color: "#2563EB",
+            weight: 5,
+            opacity: 0.88,
+            lineJoin: "round",
+          }).addTo(map);
+          var routeBounds = L.latLngBounds(routeLatLngs);
+          if (userLocation) {
+            routeBounds.extend([userLocation.latitude, userLocation.longitude]);
+          }
+          map.fitBounds(routeBounds, { padding: [56, 56], maxZoom: 15 });
+        } else if (userLocation) {
+          map.setView([userLocation.latitude, userLocation.longitude], 14);
         } else if (selectedId) {
           var selected = chargers.find(function (c) { return c.id === selectedId; });
           if (selected) {
@@ -151,6 +171,7 @@ export function WebMap({
   locationRevision,
   mapType,
   zoomCommand,
+  route,
   onMarkerPress,
 }: MapWrapperProps) {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
@@ -167,8 +188,9 @@ export function WebMap({
       userLocation: currentLocation,
       selectedChargerId,
       mapType,
+      route: route ?? null,
     };
-  }, [chargers, currentLocation, mapType, selectedChargerId]);
+  }, [chargers, currentLocation, mapType, route, selectedChargerId]);
 
   const frameHtml = useMemo(
     () => buildLeafletFrameHtml(framePayload),
@@ -185,8 +207,11 @@ export function WebMap({
           : "",
         String(locationRevision),
         mapType,
+        route
+          ? `${route.coordinates.length}:${route.coordinates[0]?.latitude},${route.coordinates[0]?.longitude}`
+          : "",
       ].join("|"),
-    [chargers, currentLocation, locationRevision, mapType, selectedChargerId],
+    [chargers, currentLocation, locationRevision, mapType, route, selectedChargerId],
   );
 
   useEffect(() => {

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react-native";
+import { render, screen } from "@testing-library/react-native";
 
 import { useGetNotificationsQuery } from "@/profile/profile.api";
 
@@ -6,6 +6,14 @@ import Notification from "./notification";
 
 jest.mock("@/profile/profile.api", () => ({
   useGetNotificationsQuery: jest.fn(),
+}));
+
+jest.mock("@/hooks/use-pull-to-refresh", () => ({
+  usePullToRefresh: (refetch: () => void) => ({
+    refreshing: false,
+    refreshControl: undefined,
+    onRefresh: refetch,
+  }),
 }));
 
 const mockUseGetNotificationsQuery = jest.mocked(useGetNotificationsQuery);
@@ -52,15 +60,6 @@ describe("Notification", () => {
         "Your charging session has ended due to power fluctuation or current cut",
       ),
     ).toBeTruthy();
-    expect(screen.getByText("Refresh")).toBeTruthy();
-  });
-
-  it("calls refetch when Refresh is pressed", () => {
-    render(<Notification />);
-
-    fireEvent.press(screen.getByText("Refresh"));
-
-    expect(refetch).toHaveBeenCalledTimes(1);
   });
 
   it("shows empty state when there are no notifications", () => {

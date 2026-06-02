@@ -3,20 +3,17 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Linking,
   Modal,
-  Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
-  useWindowDimensions,
   View,
 } from "react-native";
 import { useMapScreenLayout } from "@/hooks/use-map-screen-layout";
 
-import type { Charger, MapZoomDirection } from "../../components/maps/types";
+import type { Charger, MapRoute, MapZoomDirection } from "../../components/maps/types";
 import MapWrapper from "../../components/maps/MapWrapper";
-import { MapStationSheet } from "../../components/maps/MapStationSheet";
-import { MapTypeToggle, type MapViewType } from "../../components/maps/MapTypeToggle";
 import { MapZoomControls } from "../../components/maps/MapZoomControls";
 import {
   type ChargingStationMapItem,
@@ -27,6 +24,7 @@ import {
   getMapLocation,
   getMapLocationErrorMessage,
 } from "@/location/mapLocation";
+import { fetchDrivingRoute, formatRouteSummary } from "@/location/mapRoute";
 
 type StationTab = "all" | "available" | "favorites";
 
@@ -53,7 +51,6 @@ function toCharger(station: ChargingStationMapItem): Charger | null {
 }
 
 export default function MapScreen() {
-  const { height } = useWindowDimensions();
   const [activeTab, setActiveTab] = useState<StationTab>("all");
   const [selectedStationId, setSelectedStationId] = useState<string | null>(null);
   const [likedStations, setLikedStations] = useState<string[]>([]);
@@ -61,20 +58,20 @@ export default function MapScreen() {
   const [searchQuery, setSearchQuery] = useState("");
   const [currentLocation, setCurrentLocation] = useState<LocationState | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
-  const { sheetBottomInset, overlayTop } = useMapScreenLayout(!!locationError);
+  const [routeError, setRouteError] = useState<string | null>(null);
+  const { sheetBottomInset, overlayTop } = useMapScreenLayout();
   const [locationRevision, setLocationRevision] = useState(0);
+  const [recenterSignal, setRecenterSignal] = useState(0);
   const [isLocating, setIsLocating] = useState(false);
-  const [sheetExpandSignal, setSheetExpandSignal] = useState(0);
-  const [mapType, setMapType] = useState<MapViewType>("default");
   const [zoomCommand, setZoomCommand] = useState<
     { direction: MapZoomDirection; id: number } | undefined
   >();
-  const [sheetHeightPx, setSheetHeightPx] = useState(112);
+  const [activeRoute, setActiveRoute] = useState<MapRoute | null>(null);
+  const [routeTargetId, setRouteTargetId] = useState<string | null>(null);
+  const [isRouting, setIsRouting] = useState(false);
 
   const {
     data: allStations = [],
-    isLoading,
-    isFetching,
     error,
     refetch: refetchStations,
   } = useGetChargersQuery();
@@ -130,14 +127,14 @@ export default function MapScreen() {
     );
   }, []);
 
-  const openDirections = useCallback((station: ChargingStationMapItem) => {
+  const openExternalDirections = useCallback((station: ChargingStationMapItem) => {
     if (typeof station.latitude !== "number" || typeof station.longitude !== "number") {
       return;
     }
 
     const label = encodeURIComponent(station.name);
     const url = `https://www.google.com/maps/dir/?api=1&destination=${station.latitude},${station.longitude}&query=${label}`;
-    Linking.openURL(url);
+    void Linking.openURL(url);
   }, []);
 
   const requestCurrentLocation = useCallback(async () => {
@@ -146,12 +143,14 @@ export default function MapScreen() {
       const result = await getMapLocation();
       if (!result.ok) {
         setLocationError(getMapLocationErrorMessage(result.reason));
+        setRecenterSignal((value) => value + 1);
         return;
       }
 
       setLocationError(null);
       setCurrentLocation(result.coords);
       setLocationRevision((value) => value + 1);
+      setRecenterSignal((value) => value + 1);
     } finally {
       setIsLocating(false);
     }
@@ -161,18 +160,56 @@ export default function MapScreen() {
     void requestCurrentLocation();
   }, [requestCurrentLocation]);
 
-  const revealStationSheet = useCallback(() => {
-    setSheetExpandSignal((value) => value + 1);
-  }, []);
+  const showRouteInApp = useCallback(
+    async (station: ChargingStationMapItem) => {
+      if (typeof station.latitude !== "number" || typeof station.longitude !== "number") {
+        return;
+      }
+
+      if (!currentLocation) {
+        setLocationError("Turn on location to show a route on the map.");
+        void requestCurrentLocation();
+        return;
+      }
+
+      setIsRouting(true);
+      setRouteError(null);
+      setSelectedStationId(station.id);
+      setInfoStation(station);
+
+      const route = await fetchDrivingRoute(currentLocation, {
+        latitude: station.latitude,
+        longitude: station.longitude,
+      });
+
+      if (!route) {
+        setRouteError("Could not show a route for this station.");
+        setActiveRoute(null);
+        setRouteTargetId(null);
+      } else {
+        setRouteError(null);
+        setActiveRoute(route);
+        setRouteTargetId(station.id);
+        setInfoStation(null);
+      }
+
+      setIsRouting(false);
+    },
+    [currentLocation, requestCurrentLocation],
+  );
 
   const onMarkerPress = useCallback(
     (chargerId: string) => {
       setSelectedStationId(chargerId);
       const station = allStations.find((item) => item.id === chargerId) ?? null;
       setInfoStation(station);
-      revealStationSheet();
+      setRouteError(null);
+      if (routeTargetId && routeTargetId !== chargerId) {
+        setActiveRoute(null);
+        setRouteTargetId(null);
+      }
     },
-    [allStations, revealStationSheet],
+    [allStations, routeTargetId],
   );
 
   const onZoom = useCallback((direction: MapZoomDirection) => {
@@ -182,6 +219,63 @@ export default function MapScreen() {
     }));
   }, []);
 
+  const topChromeHeight = locationError ? 132 : 100;
+
+  const mapPadding = useMemo(
+    () => ({
+      top: overlayTop + topChromeHeight + 8,
+      right: 56,
+      bottom: sheetBottomInset + 24,
+      left: 16,
+    }),
+    [overlayTop, sheetBottomInset, topChromeHeight],
+  );
+
+  const filterChips = (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
+      contentContainerStyle={styles.chipRow}
+    >
+      {(["all", "available", "favorites"] as const).map((tab) => {
+        const isActive = activeTab === tab;
+        const label = tab === "all" ? "All" : tab === "available" ? "Available" : "Favorites";
+        return (
+          <Pressable
+            key={tab}
+            onPress={() => setActiveTab(tab)}
+            style={[styles.chip, isActive && styles.chipActive]}
+          >
+            <Text style={[styles.chipText, isActive && styles.chipTextActive]}>{label}</Text>
+          </Pressable>
+        );
+      })}
+    </ScrollView>
+  );
+
+  const topOverlay = (
+    <View style={styles.topOverlay} pointerEvents="box-none">
+      <View style={styles.searchCard}>
+        <IconSymbol name="search" size={18} color="#5F6368" />
+        <TextInput
+          placeholder="Search stations"
+          placeholderTextColor="#9AA0A6"
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          style={styles.searchInput}
+          returnKeyType="search"
+        />
+      </View>
+      {filterChips}
+      {locationError ? (
+        <View style={styles.locationBanner}>
+          <Text style={styles.locationHint}>{locationError}</Text>
+        </View>
+      ) : null}
+    </View>
+  );
+
   return (
     <View style={styles.container}>
       <View style={styles.mapLayer}>
@@ -189,142 +283,46 @@ export default function MapScreen() {
           chargers={mapChargers}
           selectedChargerId={selectedChargerId}
           currentLocation={currentLocation}
-          mapType={mapType}
+          mapType="default"
           locationRevision={locationRevision}
+          recenterSignal={recenterSignal}
           zoomCommand={zoomCommand}
-          isLoading={isLoading || isFetching}
+          route={activeRoute}
+          mapPadding={mapPadding}
+          isLoading={false}
           errorMessage={mapErrorMessage}
           onMarkerPress={onMarkerPress}
         />
       </View>
 
-      <View style={[styles.topOverlay, { top: overlayTop }]} pointerEvents="box-none">
-        <View style={styles.searchRow}>
-          <View style={styles.searchCard}>
-            <IconSymbol name="search" size={16} color="#6C7CA6" />
-            <TextInput
-              placeholder="Search stations"
-              placeholderTextColor="#8B97B2"
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              style={styles.searchInput}
-            />
-            <Pressable
-              style={[styles.locateInSearch, isLocating && styles.locationButtonBusy]}
-              onPress={requestCurrentLocation}
-              disabled={isLocating}
-              accessibilityRole="button"
-              accessibilityLabel="Locate me"
-            >
-              <IconSymbol name="location.fill" size={18} color="#1A2850" />
-            </Pressable>
-          </View>
-        </View>
-        <View style={styles.zoomRow}>
-          <MapZoomControls onZoomIn={() => onZoom("in")} onZoomOut={() => onZoom("out")} />
-        </View>
-        {locationError ? <Text style={styles.locationHint}>{locationError}</Text> : null}
+      <View style={[styles.topOverlayWrap, { top: overlayTop }]} pointerEvents="box-none">
+        {topOverlay}
       </View>
 
       <View
-        style={[styles.layerToggleWrap, { bottom: sheetBottomInset + sheetHeightPx + 8 }]}
+        style={[
+          styles.zoomOverlay,
+          { top: overlayTop + topChromeHeight + 4 },
+        ]}
         pointerEvents="box-none"
       >
-        <MapTypeToggle value={mapType} onChange={setMapType} />
+        <MapZoomControls onZoomIn={() => onZoom("in")} onZoomOut={() => onZoom("out")} />
       </View>
 
-      <MapStationSheet
-        screenHeight={height}
-        bottomInset={sheetBottomInset}
-        expandSignal={sheetExpandSignal}
-        onHeightChange={setSheetHeightPx}
-        header={
-          <View style={styles.sheetTabs}>
-            {(["all", "available", "favorites"] as const).map((tab) => (
-              <Pressable
-                key={tab}
-                onPress={() => setActiveTab(tab)}
-                style={[styles.sheetTab, activeTab === tab && styles.tabActive]}
-              >
-                <Text
-                  style={[styles.sheetTabText, activeTab === tab && styles.sheetTabTextActive]}
-                >
-                  {tab === "all" ? "All" : tab === "available" ? "Available" : "Favorites"}
-                </Text>
-                {activeTab === tab ? <View style={styles.tabLine} /> : null}
-              </Pressable>
-            ))}
-          </View>
-        }
+      <View
+        style={[styles.locateFabWrap, { bottom: sheetBottomInset + 16 }]}
+        pointerEvents="box-none"
       >
-        {!isLoading && !isFetching && filteredStations.length === 0 ? (
-          <Text style={styles.emptyText}>No charging stations match the current filters.</Text>
-        ) : null}
-
-        {filteredStations.map((station) => {
-          const isLiked = likedStations.includes(station.id);
-          const isSelected = selectedStationId === station.id;
-          const hasCoordinates =
-            typeof station.latitude === "number" && typeof station.longitude === "number";
-
-          return (
-            <Pressable
-              key={station.id}
-              onPress={() => {
-                setSelectedStationId(station.id);
-                setInfoStation(station);
-                revealStationSheet();
-              }}
-              style={[styles.stationCard, isSelected && styles.stationCardSelected]}
-            >
-              <View style={styles.stationHeader}>
-                <Text style={styles.stationName} numberOfLines={2}>
-                  {station.name}
-                </Text>
-                <View style={styles.stationActions}>
-                  <Pressable
-                    onPress={(event) => {
-                      event.stopPropagation();
-                      toggleLike(station.id);
-                    }}
-                    style={styles.circleIcon}
-                  >
-                    <IconSymbol
-                      name={isLiked ? "heart.fill" : "heart"}
-                      size={14}
-                      color={isLiked ? "#E0586A" : "#6C7CA6"}
-                    />
-                  </Pressable>
-                  <Pressable
-                    style={[styles.circleIcon, !hasCoordinates && styles.circleIconDisabled]}
-                    onPress={(event) => {
-                      event.stopPropagation();
-                      openDirections(station);
-                    }}
-                    disabled={!hasCoordinates}
-                  >
-                    <IconSymbol name="directions" size={14} color="#0F6A6A" />
-                  </Pressable>
-                </View>
-              </View>
-              <Text style={styles.stationAddress}>{station.address}</Text>
-              <View style={styles.metaRow}>
-                <Text
-                  style={[
-                    styles.statusBadge,
-                    station.isAvailable
-                      ? styles.statusBadgeAvailable
-                      : styles.statusBadgeUnavailable,
-                  ]}
-                >
-                  {station.availabilityLabel}
-                </Text>
-                <Text style={styles.stationMeta}>{station.connectorSummary}</Text>
-              </View>
-            </Pressable>
-          );
-        })}
-      </MapStationSheet>
+        <Pressable
+          style={[styles.locateFab, isLocating && styles.locationButtonBusy]}
+          onPress={() => void requestCurrentLocation()}
+          disabled={isLocating}
+          accessibilityRole="button"
+          accessibilityLabel="Locate me"
+        >
+          <IconSymbol name="location.fill" size={22} color="#1A73E8" />
+        </Pressable>
+      </View>
 
       <Modal
         visible={!!infoStation}
@@ -333,22 +331,71 @@ export default function MapScreen() {
         onRequestClose={() => setInfoStation(null)}
       >
         <Pressable style={styles.modalBackdrop} onPress={() => setInfoStation(null)}>
-          <Pressable style={styles.modalCard}>
+          <Pressable style={styles.modalCard} onPress={() => undefined}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>{infoStation?.name ?? "Station"}</Text>
-              <Pressable onPress={() => setInfoStation(null)}>
-                <IconSymbol name="xmark" size={16} color="#1A2850" />
-              </Pressable>
+              <Text style={styles.modalTitle} numberOfLines={2}>
+                {infoStation?.name ?? "Station"}
+              </Text>
+              <View style={styles.modalHeaderActions}>
+                {infoStation ? (
+                  <Pressable
+                    onPress={() => toggleLike(infoStation.id)}
+                    style={styles.modalFavorite}
+                    accessibilityRole="button"
+                    accessibilityLabel="Favorite station"
+                  >
+                    <IconSymbol
+                      name={likedStations.includes(infoStation.id) ? "heart.fill" : "heart"}
+                      size={18}
+                      color={
+                        likedStations.includes(infoStation.id) ? "#E0586A" : "#6C7CA6"
+                      }
+                    />
+                  </Pressable>
+                ) : null}
+                <Pressable
+                  onPress={() => setInfoStation(null)}
+                  hitSlop={8}
+                  style={styles.modalClose}
+                >
+                  <IconSymbol name="xmark" size={16} color="#1A2850" />
+                </Pressable>
+              </View>
             </View>
             <Text style={styles.modalAddress}>{infoStation?.address}</Text>
-            <View style={styles.modalRow}>
-              <Text style={styles.modalLabel}>Status</Text>
-              <Text style={styles.modalValue}>{infoStation?.availabilityLabel ?? "Unknown"}</Text>
+            <View style={styles.modalDetails}>
+              <View style={styles.modalRow}>
+                <Text style={styles.modalLabel}>Status</Text>
+                <Text style={styles.modalValue}>{infoStation?.availabilityLabel ?? "Unknown"}</Text>
+              </View>
+              <View style={styles.modalRow}>
+                <Text style={styles.modalLabel}>Connectors</Text>
+                <Text style={styles.modalValue}>{infoStation?.connectorSummary ?? "Unknown"}</Text>
+              </View>
             </View>
-            <View style={styles.modalRow}>
-              <Text style={styles.modalLabel}>Connectors</Text>
-              <Text style={styles.modalValue}>{infoStation?.connectorSummary ?? "Unknown"}</Text>
-            </View>
+            {infoStation && routeTargetId === infoStation.id && activeRoute ? (
+              <Text style={styles.routeSummary}>{formatRouteSummary(activeRoute)}</Text>
+            ) : null}
+            {routeError ? <Text style={styles.routeErrorText}>{routeError}</Text> : null}
+            {infoStation ? (
+              <View style={styles.modalActions}>
+                <Pressable
+                  style={[styles.modalPrimaryButton, isRouting && styles.modalButtonDisabled]}
+                  onPress={() => void showRouteInApp(infoStation)}
+                  disabled={isRouting}
+                >
+                  <Text style={styles.modalPrimaryButtonText}>
+                    {isRouting ? "Calculating route…" : "Show route on map"}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  style={styles.modalSecondaryButton}
+                  onPress={() => openExternalDirections(infoStation)}
+                >
+                  <Text style={styles.modalSecondaryButtonText}>Open in Google Maps</Text>
+                </Pressable>
+              </View>
+            ) : null}
           </Pressable>
         </Pressable>
       </Modal>
@@ -362,106 +409,111 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     zIndex: 0,
   },
-  topOverlay: { position: "absolute", left: 0, right: 0, zIndex: 2, paddingHorizontal: 16 },
-  layerToggleWrap: {
+  topOverlayWrap: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    zIndex: 4,
+  },
+  topOverlay: {
+    paddingHorizontal: 16,
+    gap: 10,
+  },
+  zoomOverlay: {
     position: "absolute",
     right: 16,
     zIndex: 3,
   },
-  searchRow: { width: "100%" },
-  searchCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    paddingVertical: 4,
-    paddingLeft: 12,
-    paddingRight: 4,
-    borderWidth: 1,
-    borderColor: "rgba(40, 92, 153, 0.12)",
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    shadowColor: "#0B2A5E",
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 3,
+  locateFabWrap: {
+    position: "absolute",
+    right: 16,
+    zIndex: 3,
   },
-  searchInput: { flex: 1, color: "#1A2850", fontWeight: "600", paddingVertical: 10 },
-  locateInSearch: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
+  locateFab: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#EAF7F6",
+    borderWidth: 1,
+    borderColor: "rgba(60, 64, 67, 0.18)",
+    shadowColor: "#000000",
+    shadowOpacity: 0.18,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 5,
+  },
+  searchCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 28,
+    paddingVertical: 4,
+    paddingHorizontal: 16,
+    minHeight: 48,
+    borderWidth: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    shadowColor: "#000000",
+    shadowOpacity: 0.16,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 4,
+  },
+  searchInput: {
+    flex: 1,
+    color: "#202124",
+    fontWeight: "500",
+    paddingVertical: 10,
+    fontSize: 16,
+  },
+  chipRow: {
+    flexDirection: "row",
+    gap: 8,
+    paddingRight: 16,
+  },
+  chip: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: "rgba(60, 64, 67, 0.12)",
+    shadowColor: "#000000",
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 2,
+  },
+  chipActive: {
+    backgroundColor: "#E8F5F4",
+    borderColor: "#21B3A7",
+  },
+  chipText: {
+    color: "#3C4043",
+    fontWeight: "600",
+    fontSize: 13,
+  },
+  chipTextActive: {
+    color: "#0F6A6A",
+    fontWeight: "700",
   },
   locationButtonBusy: { opacity: 0.65 },
-  zoomRow: {
-    marginTop: 10,
-    flexDirection: "row",
-    alignItems: "flex-start",
+  locationBanner: {
+    backgroundColor: "rgba(254, 242, 242, 0.96)",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(224, 88, 106, 0.25)",
+    paddingHorizontal: 12,
+    paddingVertical: 7,
   },
   locationHint: {
-    marginTop: 8,
     color: "#A42E3B",
     fontSize: 12,
     fontWeight: "600",
-    paddingHorizontal: 4,
+    lineHeight: 16,
   },
-  sheetTabs: { flexDirection: "row", paddingHorizontal: 16, marginBottom: 8 },
-  sheetTab: { flex: 1, alignItems: "center", paddingVertical: 8, gap: 6 },
-  tabActive: { backgroundColor: "rgba(26,40,80,0.04)", borderRadius: 10 },
-  sheetTabText: { color: "#6C7CA6", fontWeight: "700", fontSize: 13 },
-  sheetTabTextActive: { color: "#13233D" },
-  tabLine: { width: 18, height: 3, borderRadius: 999, backgroundColor: "#21B3A7" },
-  emptyText: { textAlign: "center", color: "#6C7CA6", fontWeight: "600", paddingVertical: 24 },
-  stationCard: {
-    backgroundColor: "#F7FAFF",
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "rgba(39,79,141,0.08)",
-    padding: 14,
-    marginBottom: 12,
-    gap: 8,
-  },
-  stationCardSelected: { borderColor: "#21B3A7", backgroundColor: "#EEF9F8" },
-  stationHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    gap: 8,
-  },
-  stationName: { flex: 1, color: "#13233D", fontWeight: "800", fontSize: 14 },
-  stationActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    flexShrink: 0,
-  },
-  circleIcon: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "rgba(39,79,141,0.2)",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#FFFFFF",
-  },
-  circleIconDisabled: { opacity: 0.35 },
-  stationAddress: { color: "#5C6D95", fontWeight: "500", fontSize: 12 },
-  metaRow: { flexDirection: "row", alignItems: "center", gap: 10, flexWrap: "wrap" },
-  statusBadge: {
-    fontSize: 11,
-    fontWeight: "800",
-    paddingHorizontal: 9,
-    paddingVertical: 5,
-    borderRadius: 999,
-    overflow: "hidden",
-  },
-  statusBadgeAvailable: { color: "#0E655D", backgroundColor: "rgba(33,179,167,0.18)" },
-  statusBadgeUnavailable: { color: "#A42E3B", backgroundColor: "rgba(224,88,106,0.18)" },
-  stationMeta: { color: "#4E5F88", fontWeight: "700", fontSize: 12 },
+  routeSummary: { color: "#2563EB", fontWeight: "700", fontSize: 12 },
   modalBackdrop: {
     flex: 1,
     backgroundColor: "rgba(12, 22, 46, 0.42)",
@@ -471,15 +523,72 @@ const styles = StyleSheet.create({
   },
   modalCard: {
     width: "100%",
+    maxWidth: 420,
     borderRadius: 18,
     backgroundColor: "#FFFFFF",
-    padding: 16,
-    gap: 10,
+    paddingHorizontal: 20,
+    paddingVertical: 18,
+    gap: 12,
   },
-  modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  modalTitle: { color: "#13233D", fontWeight: "800", fontSize: 17 },
-  modalAddress: { color: "#556689", fontSize: 13, marginBottom: 6 },
-  modalRow: { flexDirection: "row", justifyContent: "space-between", gap: 12 },
-  modalLabel: { color: "#6C7CA6", fontWeight: "700" },
-  modalValue: { color: "#1A2850", fontWeight: "700", flex: 1, textAlign: "right" },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: 12,
+  },
+  modalHeaderActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  modalTitle: { flex: 1, color: "#13233D", fontWeight: "800", fontSize: 17, lineHeight: 22 },
+  modalFavorite: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F3F6FB",
+  },
+  modalClose: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F3F6FB",
+  },
+  modalAddress: { color: "#556689", fontSize: 13, lineHeight: 18 },
+  modalDetails: {
+    backgroundColor: "#F7FAFF",
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    gap: 8,
+  },
+  modalRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 16 },
+  modalLabel: { color: "#6C7CA6", fontWeight: "700", fontSize: 13 },
+  modalValue: { color: "#1A2850", fontWeight: "700", fontSize: 13, flexShrink: 1, textAlign: "right" },
+  modalActions: { marginTop: 4, gap: 10 },
+  modalPrimaryButton: {
+    backgroundColor: "#0F6A6A",
+    borderRadius: 12,
+    minHeight: 48,
+    paddingHorizontal: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalButtonDisabled: { opacity: 0.7 },
+  modalPrimaryButtonText: { color: "#FFFFFF", fontWeight: "800", fontSize: 14, lineHeight: 18 },
+  modalSecondaryButton: {
+    borderRadius: 12,
+    minHeight: 48,
+    paddingHorizontal: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(39,79,141,0.2)",
+  },
+  modalSecondaryButtonText: { color: "#0F6A6A", fontWeight: "700", fontSize: 14, lineHeight: 18 },
+  routeErrorText: { color: "#A42E3B", fontWeight: "600", fontSize: 12, lineHeight: 16 },
 });

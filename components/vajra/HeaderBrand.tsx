@@ -1,6 +1,7 @@
 import { StyleSheet, Text, View } from "react-native";
 
-import { V } from "@/theme/vajra";
+import { useThemedStyles } from "@/hooks/use-vajra-colors";
+import type { VajraColors } from "@/theme/vajra-colors";
 import { VajraLogoImage } from "components/vajra/LightningBrandMark";
 
 type HeaderBrandProps = {
@@ -21,6 +22,7 @@ export function HeaderBrand({
 }: HeaderBrandProps) {
   const preset = PRESETS[variant];
   const size = logoSize ?? preset.logo;
+  const styles = useThemedStyles(createStyles);
 
   return (
     <View style={[styles.row, { gap: preset.gap }]}>
@@ -42,22 +44,23 @@ export function HeaderBrand({
   );
 }
 
-const styles = StyleSheet.create({
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  textCol: {
-    justifyContent: "center",
-    flexShrink: 1,
-  },
-  wordmark: {
-    fontWeight: "800",
-    color: V.headingDeep,
-  },
-  chargingMicro: {
-    marginTop: 2,
-    fontWeight: "700",
-    color: V.label,
-  },
-});
+const createStyles = (V: VajraColors) =>
+  StyleSheet.create({
+    row: {
+      flexDirection: "row",
+      alignItems: "center",
+    },
+    textCol: {
+      justifyContent: "center",
+      flexShrink: 1,
+    },
+    wordmark: {
+      fontWeight: "800",
+      color: V.headingDeep,
+    },
+    chargingMicro: {
+      marginTop: 2,
+      fontWeight: "700",
+      color: V.label,
+    },
+  });

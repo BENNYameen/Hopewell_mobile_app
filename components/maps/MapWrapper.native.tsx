@@ -4,14 +4,6 @@ import { MobileMap } from "./MobileMap";
 import type { MapWrapperProps } from "./types";
 
 export default function MapWrapper(props: MapWrapperProps) {
-  if (props.isLoading) {
-    return (
-      <View style={[styles.full, styles.center]}>
-        <Text style={styles.infoText}>Loading charging stations...</Text>
-      </View>
-    );
-  }
-
   if (props.errorMessage) {
     return (
       <View style={[styles.full, styles.center]}>

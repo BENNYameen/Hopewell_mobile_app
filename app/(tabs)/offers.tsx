@@ -3,17 +3,19 @@ import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from "rea
 
 import { TabScreen } from "components/vajra/TabScreen";
 import { useGetOffersQuery, Offer } from "@/profile/profile.api";
+import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { V } from "@/theme/vajra";
 
 export default function Offers() {
-  const { data: offers = [], isLoading } = useGetOffersQuery();
+  const { data: offers = [], isLoading, isFetching, refetch } = useGetOffersQuery();
+  const { refreshControl } = usePullToRefresh(refetch, isFetching);
   const [activeOffer, setActiveOffer] = useState<Offer | null>(null);
 
   return (
-    <TabScreen scroll={!isLoading}>
+    <TabScreen scroll refreshControl={refreshControl}>
       <Text style={styles.title}>Offers</Text>
 
-      {isLoading ? (
+      {isLoading && offers.length === 0 ? (
         <ActivityIndicator style={styles.loader} color="#21B3A7" />
       ) : (
         <View style={styles.list}>

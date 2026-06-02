@@ -4,10 +4,12 @@ import { useRouter } from "expo-router";
 import { IconSymbol } from "components/ui/icon-symbol";
 import { ProfileSubScreen } from "components/vajra/ProfileSubScreen";
 import { useGetSupportConfigQuery } from "@/profile/profile.api";
+import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 
 export default function HelpSupport() {
   const router = useRouter();
-  const { data: config } = useGetSupportConfigQuery();
+  const { data: config, refetch, isFetching } = useGetSupportConfigQuery();
+  const { refreshControl } = usePullToRefresh(refetch, isFetching);
 
   const supportPhone = config?.support.phone ?? "+91 88831 61155";
   const supportEmail = config?.support.email ?? "care@vajarvolt.com";
@@ -18,7 +20,7 @@ export default function HelpSupport() {
     Linking.openURL(`tel:${raw.replace(/\s+/g, "")}`);
 
   return (
-    <ProfileSubScreen title="Help">
+    <ProfileSubScreen title="Help" refreshControl={refreshControl}>
       <Text style={styles.sectionTitle}>Customer Support</Text>
       <Pressable style={styles.row} onPress={() => dialPhone(supportPhone)}>
         <IconSymbol name="phone" size={18} color="#6C7CA6" />

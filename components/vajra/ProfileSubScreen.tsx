@@ -1,10 +1,8 @@
-import type { ReactNode } from "react";
-import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
-import { useRouter } from "expo-router";
+import type { ReactElement, ReactNode } from "react";
+import type { RefreshControlProps, StyleProp, ViewStyle } from "react-native";
 
+import { ProfileScreenHeader } from "components/vajra/ProfileScreenHeader";
 import { TabScreen } from "components/vajra/TabScreen";
-import { V } from "@/theme/vajra";
-import { IconSymbol } from "components/ui/icon-symbol";
 
 type ProfileSubScreenProps = {
   title: string;
@@ -12,6 +10,7 @@ type ProfileSubScreenProps = {
   keyboardAvoiding?: boolean;
   scroll?: boolean;
   contentContainerStyle?: StyleProp<ViewStyle>;
+  refreshControl?: ReactElement<RefreshControlProps>;
 };
 
 /** Profile stack screens with back navigation and tab-bar-safe scrolling. */
@@ -21,63 +20,17 @@ export function ProfileSubScreen({
   keyboardAvoiding = false,
   scroll = true,
   contentContainerStyle,
+  refreshControl,
 }: ProfileSubScreenProps) {
-  const router = useRouter();
-
   return (
     <TabScreen
       scroll={scroll}
       keyboardAvoiding={keyboardAvoiding}
       contentContainerStyle={contentContainerStyle}
-      header={
-        <View style={styles.headerRow}>
-          <Pressable
-            style={styles.backBtn}
-            onPress={() => router.back()}
-            accessibilityRole="button"
-            accessibilityLabel="Go back"
-          >
-            <IconSymbol name="arrow.left" size={18} color={V.headingDeep} />
-          </Pressable>
-          <Text style={styles.title} numberOfLines={1}>
-            {title}
-          </Text>
-          <View style={styles.headerSpacer} />
-        </View>
-      }
+      refreshControl={refreshControl}
+      header={<ProfileScreenHeader title={title} />}
     >
       {children}
     </TabScreen>
   );
 }
-
-const styles = StyleSheet.create({
-  headerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 8,
-  },
-  backBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: V.borderNavy,
-    backgroundColor: V.card,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  title: {
-    flex: 1,
-    textAlign: "center",
-    fontSize: 18,
-    fontWeight: "700",
-    color: V.headingDeep,
-    marginHorizontal: 8,
-  },
-  headerSpacer: {
-    width: 36,
-    height: 36,
-  },
-});

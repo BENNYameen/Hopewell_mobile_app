@@ -144,9 +144,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="map"
         options={{
-          tabBarIcon: ({ color, focused }) => (
-            <TabIcon focused={focused} color={color} name="map.fill" />
-          ),
+          href: null,
         }}
       />
       <Tabs.Screen

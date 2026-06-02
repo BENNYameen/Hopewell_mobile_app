@@ -1,37 +1,29 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 
 import {
-
   Animated,
-
   PanResponder,
-
   Platform,
-
   Pressable,
-
   ScrollView,
-
   StyleSheet,
-
   View,
-
   type LayoutChangeEvent,
-
+  type RefreshControlProps,
 } from "react-native";
 
 
 
 import { IconSymbol } from "components/ui/icon-symbol";
 
-
+import {
+  MAP_SHEET_PEEK_HEIGHT,
+  MAP_SHEET_PEEK_WITH_SEARCH,
+} from "./map-sheet-constants";
 
 const SNAP_RATIOS = {
-
   half: 0.45,
-
   expanded: 0.72,
-
 } as const;
 
 
@@ -50,7 +42,7 @@ type MapStationSheetProps = {
 
   topAccessory?: React.ReactNode;
 
-  header: React.ReactNode;
+  header?: React.ReactNode;
 
   children: React.ReactNode;
 
@@ -63,6 +55,8 @@ type MapStationSheetProps = {
   /** Current sheet height in px (for positioning map controls). */
 
   onHeightChange?: (height: number) => void;
+
+  refreshControl?: ReactElement<RefreshControlProps>;
 
 };
 
@@ -106,11 +100,13 @@ export function MapStationSheet({
 
   onHeightChange,
 
+  refreshControl,
+
 }: MapStationSheetProps) {
 
   const snapHeights = useMemo(() => {
 
-    const peek = topAccessory ? 172 : 112;
+    const peek = topAccessory ? MAP_SHEET_PEEK_WITH_SEARCH : MAP_SHEET_PEEK_HEIGHT;
 
     const maxHeight = Math.round(screenHeight * SNAP_RATIOS.expanded);
 
@@ -558,7 +554,7 @@ export function MapStationSheet({
 
       {topAccessory ? <View style={styles.topAccessory}>{topAccessory}</View> : null}
 
-      <View style={styles.header}>{header}</View>
+      {header ? <View style={styles.header}>{header}</View> : null}
 
 
 
@@ -581,6 +577,8 @@ export function MapStationSheet({
           nestedScrollEnabled
 
           keyboardShouldPersistTaps="handled"
+
+          refreshControl={refreshControl}
 
         >
 
@@ -705,15 +703,10 @@ const styles = StyleSheet.create({
   },
 
   topAccessory: {
-
-    alignItems: "center",
-
-    paddingTop: 4,
-
-    paddingBottom: 8,
-
-    paddingHorizontal: 16,
-
+    paddingTop: 2,
+    paddingBottom: 6,
+    paddingHorizontal: 12,
+    width: "100%",
   },
 
   header: {

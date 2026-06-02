@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
+import { useDispatch } from "react-redux";
 import { ACCESS_TOKEN_KEY } from "@/auth/session";
 import { getItemAsync } from "@/auth/secureStorage";
+import { syncChargingSessionCaches } from "@/charging/chargingCacheSync";
 import { WS_BASE_URL } from "@/config/runtime";
 
 /** Payload from Vajrabackend `sessionUpdatePayload` over `/ws/charging/:session_id`. */
@@ -34,6 +36,7 @@ export function useChargingSocket(
   sessionId: string | null,
   enabled = true,
 ) {
+  const dispatch = useDispatch();
   const [state, setState] = useState<ChargingSocketState>({
     data: null,
     connected: false,
@@ -90,6 +93,9 @@ export function useChargingSocket(
         try {
           const parsed = JSON.parse(event.data) as ChargingUpdate;
           setState((prev) => ({ ...prev, data: parsed }));
+          if (sessionId) {
+            syncChargingSessionCaches(dispatch, sessionId, parsed);
+          }
         } catch {
           setState((prev) => ({
             ...prev,
@@ -120,7 +126,7 @@ export function useChargingSocket(
       socket?.close();
       socketRef.current = null;
     };
-  }, [sessionId, enabled]);
+  }, [dispatch, sessionId, enabled]);
 
   return state;
 }

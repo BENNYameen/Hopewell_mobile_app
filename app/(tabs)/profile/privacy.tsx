@@ -1,11 +1,14 @@
 import { StyleSheet, Text } from "react-native";
 
 import { ProfileSubScreen } from "components/vajra/ProfileSubScreen";
+import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { V } from "@/theme/vajra";
 
 export default function PrivacyData() {
+  const { refreshControl } = usePullToRefresh(async () => {}, false);
+
   return (
-    <ProfileSubScreen title="Privacy Policy">
+    <ProfileSubScreen title="Privacy Policy" refreshControl={refreshControl}>
       <Text style={styles.updated}>Effective date: April 22, 2026</Text>
 
       <Text style={styles.sectionTitle}>What we collect</Text>

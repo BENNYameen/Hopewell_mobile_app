@@ -2,6 +2,7 @@ import { Pressable, StyleSheet, Text } from "react-native";
 import { useRouter } from "expo-router";
 
 import { ProfileSubScreen } from "components/vajra/ProfileSubScreen";
+import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { clearStoredSession } from "@/auth/session";
 import { useLogoutMutation } from "@/auth/auth.api";
 import { logout as logoutAction } from "@/features/auth/slice";
@@ -11,6 +12,7 @@ export default function Logout() {
   const router = useRouter();
   const dispatch = useAppDispatch();
   const [logout, { isLoading, isError }] = useLogoutMutation();
+  const { refreshControl } = usePullToRefresh(async () => {}, false);
 
   const handleLogout = async () => {
     try {
@@ -25,7 +27,7 @@ export default function Logout() {
   };
 
   return (
-    <ProfileSubScreen title="Log out">
+    <ProfileSubScreen title="Log out" refreshControl={refreshControl}>
       <Text style={styles.body}>
         Log out confirmation will be handled here.
       </Text>

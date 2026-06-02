@@ -1,22 +1,23 @@
 import type { ReactElement, ReactNode } from "react";
+import { useMemo } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
   StyleSheet,
   View,
+  type RefreshControlProps,
   type StyleProp,
   type ViewStyle,
 } from "react-native";
-import type { RefreshControlProps } from "react-native";
 import {
   SafeAreaView,
   type Edge,
 } from "react-native-safe-area-context";
 
 import { useTabScreenInsets } from "@/hooks/use-tab-screen-insets";
+import { useVajraColors } from "@/hooks/use-vajra-colors";
 import { useWebContentPadding } from "@/hooks/use-web-content-padding";
-import { V } from "@/theme/vajra";
 
 type TabScreenProps = {
   children: ReactNode;
@@ -42,8 +43,27 @@ export function TabScreen({
   refreshControl,
 }: TabScreenProps) {
   const isWeb = Platform.OS === "web";
-  const { top, bottom, horizontal } = useTabScreenInsets();
+  const colors = useVajraColors();
+  const { bottom, horizontal } = useTabScreenInsets();
   const webContentPadding = useWebContentPadding({ hasHeader: !!header });
+  const shellStyles = useMemo(
+    () =>
+      StyleSheet.create({
+        webPage: {
+          flex: 1,
+          backgroundColor: colors.pageBg,
+          minHeight: 0,
+        },
+        webScroll: { flex: 1 },
+        webHeader: { paddingBottom: 4 },
+        safe: { flex: 1, backgroundColor: colors.pageBg },
+        fill: { flex: 1 },
+        header: { paddingBottom: 4 },
+      }),
+    [colors.pageBg],
+  );
+
+  const nativeContentTop = 12;
 
   const contentPadding: ViewStyle = isWeb
     ? {
@@ -54,14 +74,14 @@ export function TabScreen({
         alignSelf: webContentPadding.alignSelf,
       }
     : {
-        paddingTop: header ? 12 : top,
+        paddingTop: nativeContentTop,
         paddingBottom: bottom,
         paddingHorizontal: horizontal,
       };
 
   const body = scroll ? (
     <ScrollView
-      style={isWeb ? styles.webScroll : styles.fill}
+      style={isWeb ? shellStyles.webScroll : shellStyles.fill}
       showsVerticalScrollIndicator={isWeb}
       keyboardShouldPersistTaps="handled"
       refreshControl={refreshControl}
@@ -70,18 +90,18 @@ export function TabScreen({
       {children}
     </ScrollView>
   ) : (
-    <View style={[styles.fill, contentPadding, contentContainerStyle]}>
+    <View style={[shellStyles.fill, contentPadding, contentContainerStyle]}>
       {children}
     </View>
   );
 
   if (isWeb) {
     return (
-      <View style={[styles.webPage, style]}>
+      <View style={[shellStyles.webPage, style]}>
         {header ? (
           <View
             style={[
-              styles.webHeader,
+              shellStyles.webHeader,
               {
                 paddingTop: webContentPadding.headerPaddingTop,
                 paddingHorizontal: webContentPadding.paddingHorizontal,
@@ -99,9 +119,14 @@ export function TabScreen({
   }
 
   const shell = (
-    <SafeAreaView style={[styles.safe, style]} edges={edges}>
+    <SafeAreaView style={[shellStyles.safe, style]} edges={edges}>
       {header ? (
-        <View style={[styles.header, { paddingTop: top, paddingHorizontal: horizontal }]}>
+        <View
+          style={[
+            shellStyles.header,
+            { paddingTop: nativeContentTop, paddingHorizontal: horizontal },
+          ]}
+        >
           {header}
         </View>
       ) : null}
@@ -115,7 +140,7 @@ export function TabScreen({
 
   return (
     <KeyboardAvoidingView
-      style={styles.fill}
+      style={shellStyles.fill}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       {shell}
@@ -123,26 +148,3 @@ export function TabScreen({
   );
 }
 
-const styles = StyleSheet.create({
-  webPage: {
-    flex: 1,
-    backgroundColor: V.pageBg,
-    minHeight: 0,
-  },
-  webScroll: {
-    flex: 1,
-  },
-  webHeader: {
-    paddingBottom: 4,
-  },
-  safe: {
-    flex: 1,
-    backgroundColor: V.pageBg,
-  },
-  fill: {
-    flex: 1,
-  },
-  header: {
-    paddingBottom: 4,
-  },
-});

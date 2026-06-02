@@ -11,6 +11,7 @@ import {
 } from "react-native";
 
 import { TabScreen } from "components/vajra/TabScreen";
+import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 
 import {
   useStartChargingMutation,
@@ -173,6 +174,8 @@ export default function QRResultScreen() {
     verifyCharger,
   ]);
 
+  const { refreshControl } = usePullToRefresh(runVerification, isVerifying);
+
   useEffect(() => {
     void runVerification();
   }, [verifyKey, runVerification]);
@@ -235,7 +238,7 @@ export default function QRResultScreen() {
   };
 
   return (
-    <TabScreen contentContainerStyle={styles.scrollContent}>
+    <TabScreen contentContainerStyle={styles.scrollContent} refreshControl={refreshControl}>
         <View style={styles.panel}>
           <Text style={styles.title}>Start charging</Text>
           <Text style={styles.lead}>

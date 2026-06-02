@@ -5,12 +5,12 @@ import {
   Modal,
   Platform,
   Pressable,
-  RefreshControl,
   StyleSheet,
   Text,
   View,
 } from "react-native";
 
+import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { TabScreen } from "components/vajra/TabScreen";
 
 import {
@@ -18,7 +18,9 @@ import {
   useStopChargingMutation,
 } from "@/charging/charging.api";
 import { useChargingSocket } from "@/charging/charging.socket";
+import { mergeSessionDetailMetrics } from "@/charging/sessionMetrics";
 import { isSessionLive, sessionStatusLabel } from "@/charging/sessionStatus";
+import { useLiveChargingSession } from "@/charging/useLiveChargingSession";
 import { confirmAction, showAlert } from "@/utils/confirmAction";
 import { V } from "@/theme/vajra";
 import { IconSymbol } from "components/ui/icon-symbol";
@@ -42,15 +44,6 @@ const formatDateTime = (value: string | null) => {
   return `${day} ${month}, ${time.toUpperCase()}`;
 };
 
-const getDurationMinutes = (start: string, end: string | null) => {
-  const startMs = new Date(start).getTime();
-  const endMs = end ? new Date(end).getTime() : Date.now();
-  if (Number.isNaN(startMs) || Number.isNaN(endMs)) {
-    return "--";
-  }
-  return Math.max(0, Math.round((endMs - startMs) / 60000));
-};
-
 const formatNumber = (value: number | null | undefined, decimals = 2) => {
   if (value == null || Number.isNaN(value)) {
     return "--";
@@ -58,10 +51,16 @@ const formatNumber = (value: number | null | undefined, decimals = 2) => {
   return Number(value).toFixed(decimals);
 };
 
+const LIVE_SESSION_POLL_MS = 15_000;
+
 export default function SessionDetails() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const sessionId = typeof id === "string" ? id : "";
+  const { live: activeLive } = useLiveChargingSession({
+    enabled: !!sessionId,
+  });
+  const isViewingActiveSession = activeLive?.session.id === sessionId;
   const {
     data: session,
     isLoading,
@@ -71,9 +70,18 @@ export default function SessionDetails() {
     refetch,
   } = useGetChargingSessionQuery(sessionId, {
     skip: !sessionId,
+    pollingInterval:
+      isViewingActiveSession && activeLive && isSessionLive(activeLive.status)
+        ? LIVE_SESSION_POLL_MS
+        : session && isSessionLive(session.status)
+          ? LIVE_SESSION_POLL_MS
+          : 0,
   });
 
-  const shouldConnect = session ? isSessionLive(session.status) : false;
+  const shouldConnect =
+    !!session &&
+    !isViewingActiveSession &&
+    isSessionLive(session.status);
   const { data: liveData } = useChargingSocket(
     shouldConnect ? sessionId : null,
     shouldConnect,
@@ -81,22 +89,25 @@ export default function SessionDetails() {
   const [stopCharging, { isLoading: isStopping, error: stopError }] =
     useStopChargingMutation();
   const [showStopConfirm, setShowStopConfirm] = useState(false);
-  const liveEnergy = liveData?.energy_kwh ?? session?.energy_kwh;
-  const liveCost = liveData?.cost ?? session?.cost;
-  const liveStatus = liveData?.status ?? session?.status ?? "";
-  const liveDurationMin =
-    liveData?.duration_sec != null
-      ? Math.max(0, Math.round(liveData.duration_sec / 60))
-      : null;
-  const durationMin = useMemo(() => {
-    if (!session?.start_time) {
-      return "--";
+
+  const mergedLive = useMemo(() => {
+    if (session) {
+      return mergeSessionDetailMetrics(session, liveData, activeLive);
     }
-    if (liveDurationMin != null) {
-      return liveDurationMin;
+    if (isViewingActiveSession && activeLive) {
+      return activeLive;
     }
-    return getDurationMinutes(session.start_time, session.end_time);
-  }, [session?.start_time, session?.end_time, liveDurationMin]);
+    return null;
+  }, [activeLive, isViewingActiveSession, liveData, session]);
+
+  const displaySession = session ?? activeLive?.session ?? null;
+
+  const liveEnergy = mergedLive?.energyKwh;
+  const liveCost = mergedLive?.cost;
+  const liveStatus = mergedLive?.status ?? displaySession?.status ?? "";
+  const durationMin = mergedLive?.durationMin ?? "--";
+  const chargerLabel =
+    mergedLive?.chargerLabel ?? displaySession?.charger_id ?? "";
   const pulseAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -126,6 +137,9 @@ export default function SessionDetails() {
       animation.stop();
     };
   }, [liveStatus, pulseAnim]);
+
+  const { refreshControl } = usePullToRefresh(refetch, isFetching);
+
   const errorStatus =
     typeof error === "object" && error
       ? "status" in error
@@ -197,7 +211,7 @@ export default function SessionDetails() {
     );
   }
 
-  if (isLoading) {
+  if (isLoading && !displaySession) {
     return (
       <TabScreen>
         <Text style={styles.stateMessage}>Loading session...</Text>
@@ -205,7 +219,7 @@ export default function SessionDetails() {
     );
   }
 
-  if (isError || !session) {
+  if ((isError || !displaySession) && !mergedLive) {
     return (
       <TabScreen
         header={
@@ -227,9 +241,7 @@ export default function SessionDetails() {
   return (
     <>
     <TabScreen
-      refreshControl={
-        <RefreshControl refreshing={isFetching} onRefresh={refetch} />
-      }
+      refreshControl={refreshControl}
       header={
         <View style={styles.topBar}>
           <Pressable
@@ -252,10 +264,10 @@ export default function SessionDetails() {
           </View>
           <View style={styles.summaryText}>
             <Text style={styles.summaryTitle} numberOfLines={2}>
-              {liveData?.charger_name ?? session.charger_id}
+              {chargerLabel}
             </Text>
             <Text style={styles.summaryMeta}>
-              Connector {session.connector_id}
+              Connector {displaySession?.connector_id}
             </Text>
           </View>
         </View>
@@ -293,13 +305,13 @@ export default function SessionDetails() {
         <View style={styles.summaryRow}>
           <Text style={styles.summaryLabel}>Started</Text>
           <Text style={styles.summaryValue}>
-            {formatDateTime(session.start_time)}
+            {formatDateTime(displaySession?.start_time ?? null)}
           </Text>
         </View>
         <View style={styles.summaryRow}>
           <Text style={styles.summaryLabel}>Ended</Text>
           <Text style={styles.summaryValue}>
-            {formatDateTime(session.end_time)}
+            {formatDateTime(displaySession?.end_time ?? null)}
           </Text>
         </View>
       </View>
@@ -316,7 +328,7 @@ export default function SessionDetails() {
         <View style={styles.gridCard}>
           <Text style={styles.gridLabel}>Cost</Text>
           <Text style={styles.gridValue}>
-            ₹{formatNumber(liveCost ?? session.cost)}
+            ₹{formatNumber(liveCost ?? displaySession?.cost)}
           </Text>
         </View>
         <View style={styles.gridCard}>
@@ -327,7 +339,9 @@ export default function SessionDetails() {
 
       <View style={styles.detailCard}>
         <Text style={styles.detailTitle}>Connector</Text>
-        <Text style={styles.detailValue}>Connector {session.connector_id}</Text>
+        <Text style={styles.detailValue}>
+          Connector {displaySession?.connector_id}
+        </Text>
       </View>
       {isSessionLive(liveStatus) && liveStatus !== "stopping" ? (
         <View style={styles.actionWrap}>

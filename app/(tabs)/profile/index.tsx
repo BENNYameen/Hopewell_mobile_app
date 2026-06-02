@@ -2,14 +2,18 @@ import { useRouter } from "expo-router";
 import { useCallback } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 
+import { useThemedStyles, useVajraColors } from "@/hooks/use-vajra-colors";
+import type { VajraColors } from "@/theme/vajra-colors";
 import { TabScreen } from "components/vajra/TabScreen";
-import { V } from "@/theme/vajra";
+import { ProfileScreenHeader } from "components/vajra/ProfileScreenHeader";
 import { useGetMeQuery } from "@/profile/profile.api";
 import { useGetWalletBalanceQuery } from "@/wallet/wallet.api";
+import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { IconSymbol } from "components/ui/icon-symbol";
 
 type RowId =
   | "personal"
+  | "appearance"
   | "wallet"
   | "charging-history"
   | "transactions"
@@ -24,6 +28,7 @@ type RowItem = {
 
 const PROFILE_ITEMS: RowItem[] = [
   { id: "personal", label: "Personal info" },
+  { id: "appearance", label: "Appearance" },
   { id: "wallet", label: "Wallet" },
   { id: "charging-history", label: "Charging history" },
   { id: "transactions", label: "Transactions" },
@@ -32,6 +37,7 @@ const PROFILE_ITEMS: RowItem[] = [
 
 const ROUTES = {
   personal: "/profile/personal",
+  appearance: "/profile/appearance",
   wallet: "/profile/wallet",
   "charging-history": "/profile/charging-history",
   transactions: "/profile/transactions",
@@ -40,9 +46,20 @@ const ROUTES = {
 
 export default function Profile() {
   const router = useRouter();
-  const { data } = useGetMeQuery();
-  const { data: walletData, isLoading: walletLoading } =
-    useGetWalletBalanceQuery();
+  const colors = useVajraColors();
+  const styles = useThemedStyles(createStyles);
+  const { data, refetch: refetchMe, isFetching: meFetching } = useGetMeQuery();
+  const {
+    data: walletData,
+    isLoading: walletLoading,
+    refetch: refetchWallet,
+    isFetching: walletFetching,
+  } = useGetWalletBalanceQuery();
+
+  const { refreshControl } = usePullToRefresh(
+    [refetchMe, refetchWallet],
+    meFetching || walletFetching,
+  );
 
   const walletText = walletLoading
     ? "Loading..."
@@ -58,13 +75,10 @@ export default function Profile() {
   );
 
   return (
-    <TabScreen>
-        <View style={styles.header}>
-          <View style={styles.headerSpacer} />
-          <Text style={styles.headerTitle}>Account</Text>
-          <View style={styles.headerSpacer} />
-        </View>
-
+    <TabScreen
+      refreshControl={refreshControl}
+      header={<ProfileScreenHeader title="Account" showBack={false} />}
+    >
         <View style={styles.identity}>
           <Text style={styles.name}>{data?.full_name ?? "Your name"}</Text>
           <Text style={styles.email}>
@@ -96,7 +110,7 @@ export default function Profile() {
                   <Text style={styles.rowValue}>{walletText}</Text>
                 ) : null}
                 {!item.danger ? (
-                  <IconSymbol name="chevron.right" size={18} color="#9AA7BF" />
+                  <IconSymbol name="chevron.right" size={18} color={colors.label} />
                 ) : null}
               </View>
             </Pressable>
@@ -112,88 +126,74 @@ export default function Profile() {
   );
 }
 
-const styles = StyleSheet.create({
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 18,
-  },
-  headerTitle: {
-    fontSize: 26,
-    fontWeight: "700",
-    color: "#0F172A",
-  },
-  headerSpacer: {
-    width: 36,
-    height: 36,
-  },
-  identity: {
-    marginBottom: 20,
-  },
-  name: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#0F172A",
-  },
-  email: {
-    marginTop: 4,
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#6C7CA6",
-  },
-  sectionTitle: {
-    marginTop: 4,
-    marginBottom: 8,
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#0F172A",
-  },
-  card: {
-    backgroundColor: V.card,
-    borderRadius: V.radiusPanel,
-    paddingVertical: 4,
-    borderWidth: 1,
-    borderColor: V.borderNavy,
-    ...V.shadowCard,
-    marginBottom: 18,
-  },
-  rowLabelDanger: {
-    color: V.error,
-  },
-  footNote: {
-    marginTop: 24,
-    fontSize: 10,
-    fontWeight: "600",
-    color: V.label,
-    textAlign: "center",
-    lineHeight: 14,
-  },
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderColor: V.borderHairline,
-  },
-  rowLast: {
-    borderBottomWidth: 0,
-  },
-  rowLabel: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#13233D",
-  },
-  rowRight: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  rowValue: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#8B97B2",
-  },
-});
+const createStyles = (V: VajraColors) =>
+  StyleSheet.create({
+    identity: {
+      marginBottom: 20,
+    },
+    name: {
+      fontSize: 20,
+      fontWeight: "700",
+      color: V.headingDeep,
+    },
+    email: {
+      marginTop: 4,
+      fontSize: 14,
+      fontWeight: "600",
+      color: V.bodySecondary,
+    },
+    sectionTitle: {
+      marginTop: 4,
+      marginBottom: 8,
+      fontSize: 16,
+      fontWeight: "700",
+      color: V.headingDeep,
+    },
+    card: {
+      backgroundColor: V.card,
+      borderRadius: V.radiusPanel,
+      paddingVertical: 4,
+      borderWidth: 1,
+      borderColor: V.borderNavy,
+      ...V.shadowCard,
+      marginBottom: 18,
+    },
+    rowLabelDanger: {
+      color: V.error,
+    },
+    footNote: {
+      marginTop: 24,
+      fontSize: 10,
+      fontWeight: "600",
+      color: V.label,
+      textAlign: "center",
+      lineHeight: 14,
+    },
+    row: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingHorizontal: 16,
+      paddingVertical: 14,
+      borderBottomWidth: 1,
+      borderColor: V.borderHairline,
+    },
+    rowLast: {
+      borderBottomWidth: 0,
+    },
+    rowLabel: {
+      fontSize: 14,
+      fontWeight: "600",
+      color: V.headingMuted,
+    },
+    rowRight: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+    },
+    rowValue: {
+      fontSize: 13,
+      fontWeight: "600",
+      color: V.label,
+    },
+  });

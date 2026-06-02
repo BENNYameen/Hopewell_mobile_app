@@ -20,6 +20,7 @@ const NativeCheckoutWebView =
 import { USER_EMAIL_KEY, USER_NAME_KEY } from "@/auth/session";
 import { getItemAsync } from "@/auth/secureStorage";
 import { api } from "@/api/api";
+import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { useGetMeQuery } from "@/profile/profile.api";
 import { useAppDispatch } from "@/store/hooks";
 import { useInitiateTopupMutation } from "@/wallet/wallet.api";
@@ -149,7 +150,8 @@ function buildRazorpayHtml(options: object): string {
 export default function AddMoney() {
   const router = useRouter();
   const dispatch = useAppDispatch();
-  const { data: me } = useGetMeQuery();
+  const { data: me, refetch: refetchMe, isFetching: meFetching } = useGetMeQuery();
+  const { refreshControl } = usePullToRefresh(refetchMe, meFetching);
   const [amount, setAmount] = useState("500");
   const [paymentError, setPaymentError] = useState("");
   const [validationError, setValidationError] = useState("");
@@ -258,7 +260,7 @@ export default function AddMoney() {
 
   return (
     <>
-    <ProfileSubScreen title="Add money" keyboardAvoiding>
+    <ProfileSubScreen title="Add money" keyboardAvoiding refreshControl={refreshControl}>
       <Text style={styles.body}>Top up your wallet balance here.</Text>
 
       <View style={styles.inputGroup}>

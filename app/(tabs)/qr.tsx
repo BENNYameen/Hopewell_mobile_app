@@ -3,13 +3,11 @@ import { useCameraPermissions } from "expo-camera";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import {
-  KeyboardAvoidingView,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   useWindowDimensions,
   View,
 } from "react-native";
@@ -17,13 +15,13 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { QrScannerView } from "components/qr/QrScannerView";
 import { useTabScreenInsets } from "@/hooks/use-tab-screen-insets";
+import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { useWebContentPadding } from "@/hooks/use-web-content-padding";
 import { BREAKPOINT_MEDIUM } from "@/hooks/use-responsive-layout";
 import { V } from "@/theme/vajra";
 import { IconSymbol } from "components/ui/icon-symbol";
 
-const INFO_COPY =
-  "Scan the QR code on the charger, or enter the charger ID and connector below.";
+const INFO_COPY = "Scan the QR code on the charger to verify and start charging.";
 
 export default function QRScreen() {
   const router = useRouter();
@@ -38,8 +36,6 @@ export default function QRScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const hasPermission = permission?.granted ?? null;
   const [scanned, setScanned] = useState(false);
-  const [manualChargerId, setManualChargerId] = useState("");
-  const [manualConnectorId, setManualConnectorId] = useState("1");
 
   useEffect(() => {
     if (!isFocused) return;
@@ -54,26 +50,16 @@ export default function QRScreen() {
     }, []),
   );
 
+  const handleRefresh = useCallback(async () => {
+    setScanned(false);
+    await requestPermission();
+  }, [requestPermission]);
+
+  const { refreshControl } = usePullToRefresh(handleRefresh, false);
+
   const handleBarCodeScanned = ({ data }: { type: string; data: string }) => {
     setScanned(true);
     const payload = data?.trim() ? encodeURIComponent(data.trim()) : "";
-    router.replace({
-      pathname: "/qr-result",
-      params: { payload },
-    });
-  };
-
-  const handleManualSubmit = () => {
-    const chargerId = manualChargerId.trim();
-    if (!chargerId) {
-      return;
-    }
-    const connectorId = manualConnectorId.trim();
-    const payloadObj = {
-      charger_id: chargerId,
-      connector_id: connectorId ? Number(connectorId) : undefined,
-    };
-    const payload = encodeURIComponent(JSON.stringify(payloadObj));
     router.replace({
       pathname: "/qr-result",
       params: { payload },
@@ -86,8 +72,7 @@ export default function QRScreen() {
         <View style={styles.permissionCard}>
           <Text style={styles.permissionTitle}>QR scanner</Text>
           <Text style={styles.permissionBody}>
-            Open this screen to scan a charger QR code. You can still enter
-            the charger ID manually below.
+            Open this screen to scan a charger QR code.
           </Text>
         </View>
       );
@@ -108,8 +93,8 @@ export default function QRScreen() {
           <Text style={styles.permissionTitle}>Camera permission denied</Text>
           <Text style={styles.permissionBody}>
             {isWeb
-              ? "Enable camera access in your browser (address bar or site settings), or enter the charger ID manually below."
-              : "Enable camera access in your device settings, or enter the charger ID manually below."}
+              ? "Enable camera access in your browser (address bar or site settings) to scan the charger QR code."
+              : "Enable camera access in your device settings to scan the charger QR code."}
           </Text>
           <Pressable style={styles.permissionButton} onPress={requestPermission}>
             <Text style={styles.permissionButtonText}>Allow camera</Text>
@@ -131,37 +116,6 @@ export default function QRScreen() {
     );
   })();
 
-  const manualForm = (
-    <View style={isWeb ? styles.formCardWeb : styles.formCard}>
-      <Text style={styles.manualHeading}>Or enter manually</Text>
-      <View style={styles.inputGroup}>
-        <Text style={styles.inputLabel}>Charger ID</Text>
-        <TextInput
-          placeholder="e.g. CP-001"
-          value={manualChargerId}
-          onChangeText={setManualChargerId}
-          style={isWeb ? styles.inputWeb : styles.input}
-          autoCapitalize="none"
-          placeholderTextColor={V.label}
-        />
-      </View>
-      <View style={styles.inputGroup}>
-        <Text style={styles.inputLabel}>Connector ID</Text>
-        <TextInput
-          placeholder="1"
-          value={manualConnectorId}
-          onChangeText={setManualConnectorId}
-          keyboardType="number-pad"
-          style={isWeb ? styles.inputWeb : styles.input}
-          placeholderTextColor={V.label}
-        />
-      </View>
-      <Pressable style={styles.primaryBtn} onPress={handleManualSubmit}>
-        <Text style={styles.primaryText}>Verify Charger</Text>
-      </Pressable>
-    </View>
-  );
-
   const pageHeader = (
     <>
       <Text style={[styles.pageTitle, isWeb && styles.pageTitleWeb]}>
@@ -180,6 +134,7 @@ export default function QRScreen() {
         <ScrollView
           style={styles.webScrollView}
           showsVerticalScrollIndicator
+          refreshControl={refreshControl}
           contentContainerStyle={{
             paddingTop: webPadding.scrollPaddingTop,
             paddingBottom: webPadding.paddingBottom,
@@ -187,16 +142,10 @@ export default function QRScreen() {
             width: webPadding.width,
             alignSelf: webPadding.alignSelf,
           }}
-          keyboardShouldPersistTaps="handled"
         >
           {pageHeader}
-          <View style={isWideWeb ? styles.webSplit : styles.webStack}>
-            <View style={isWideWeb ? styles.webScannerCol : undefined}>
-              {permissionUi}
-            </View>
-            <View style={isWideWeb ? styles.webFormCol : undefined}>
-              {manualForm}
-            </View>
+          <View style={isWideWeb ? styles.webScannerWide : styles.webStack}>
+            {permissionUi}
           </View>
         </ScrollView>
       </View>
@@ -208,11 +157,10 @@ export default function QRScreen() {
       <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
         <ScrollView
           contentContainerStyle={[styles.nativeFallbackScroll, { paddingBottom: bottom }]}
-          keyboardShouldPersistTaps="handled"
+          refreshControl={refreshControl}
         >
           {pageHeader}
           {permissionUi}
-          {manualForm}
         </ScrollView>
       </SafeAreaView>
     );
@@ -220,10 +168,7 @@ export default function QRScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
-      <KeyboardAvoidingView
-        style={styles.nativeLayout}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
+      <View style={styles.nativeLayout}>
         <View style={[styles.scannerSlot, { height: scannerHeight }]}>
           <QrScannerView
             scanned={scanned}
@@ -237,14 +182,13 @@ export default function QRScreen() {
         <View style={styles.panel}>
           <ScrollView
             showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
+            refreshControl={refreshControl}
             contentContainerStyle={[styles.panelScroll, { paddingBottom: bottom }]}
           >
             {pageHeader}
-            {manualForm}
           </ScrollView>
         </View>
-      </KeyboardAvoidingView>
+      </View>
     </SafeAreaView>
   );
 }
@@ -258,23 +202,12 @@ const styles = StyleSheet.create({
   webScrollView: {
     flex: 1,
   },
-  webSplit: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 24,
+  webScannerWide: {
+    maxWidth: 420,
     marginTop: 4,
   },
   webStack: {
     marginTop: 4,
-  },
-  webScannerCol: {
-    flex: 1,
-    minWidth: 280,
-    maxWidth: 420,
-  },
-  webFormCol: {
-    flex: 1,
-    minWidth: 280,
   },
   webScanner: {
     width: "100%",
@@ -310,27 +243,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: V.tealBadgeText,
     lineHeight: 18,
-  },
-  formCardWeb: {
-    backgroundColor: V.card,
-    borderRadius: V.radiusCard,
-    borderWidth: 1,
-    borderColor: V.borderNavy,
-    padding: 24,
-    marginTop: 0,
-    width: "100%",
-    ...V.shadowCard,
-  },
-  inputWeb: {
-    borderWidth: 1,
-    borderColor: V.borderNavyMedium,
-    borderRadius: V.radiusInput,
-    paddingHorizontal: 14,
-    paddingVertical: 13,
-    fontSize: 14,
-    fontWeight: "600",
-    color: V.headingDeep,
-    backgroundColor: "#F3F6FB",
   },
 
   container: { flex: 1, backgroundColor: V.pageBg },
@@ -374,52 +286,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: V.bodySecondary,
     lineHeight: 18,
-  },
-  manualHeading: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: V.heading,
-    marginBottom: 14,
-  },
-  formCard: {
-    backgroundColor: V.card,
-    borderRadius: V.radiusCard,
-    borderWidth: 1,
-    borderColor: V.borderNavy,
-    padding: 20,
-    ...V.shadowCard,
-  },
-  inputGroup: {
-    marginBottom: 14,
-  },
-  inputLabel: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: V.heading,
-    marginBottom: 8,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: V.borderNavyMedium,
-    borderRadius: V.radiusInput,
-    paddingHorizontal: 14,
-    paddingVertical: 13,
-    fontSize: 14,
-    fontWeight: "600",
-    color: V.headingDeep,
-    backgroundColor: V.pageBg,
-  },
-  primaryBtn: {
-    backgroundColor: V.primary,
-    paddingVertical: 14,
-    borderRadius: V.radiusInput,
-    alignItems: "center",
-    marginTop: 4,
-  },
-  primaryText: {
-    color: V.card,
-    fontWeight: "700",
-    fontSize: 14,
   },
   permissionCard: {
     backgroundColor: V.panelTint,

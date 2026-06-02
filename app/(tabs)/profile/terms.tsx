@@ -1,11 +1,14 @@
 import { StyleSheet, Text } from "react-native";
 
 import { ProfileSubScreen } from "components/vajra/ProfileSubScreen";
+import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { V } from "@/theme/vajra";
 
 export default function TermsOfService() {
+  const { refreshControl } = usePullToRefresh(async () => {}, false);
+
   return (
-    <ProfileSubScreen title="Terms of Service">
+    <ProfileSubScreen title="Terms of Service" refreshControl={refreshControl}>
       <Text style={styles.updated}>Effective date: April 22, 2026</Text>
 
       <Text style={styles.sectionTitle}>Use of service</Text>

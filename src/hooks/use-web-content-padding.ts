@@ -3,7 +3,7 @@ import { Platform } from "react-native";
 import { useWebSidebarState } from "@/context/web-sidebar";
 import {
   useResponsiveLayout,
-  WEB_SHELL_TOP_BAR_HEIGHT,
+  useWebShellTopBarMetrics,
 } from "@/hooks/use-responsive-layout";
 import { V } from "@/theme/vajra";
 
@@ -12,11 +12,11 @@ import { V } from "@/theme/vajra";
  */
 export function useWebContentPadding(options?: { hasHeader?: boolean }) {
   const { contentPaddingH } = useResponsiveLayout();
+  const { totalHeight: topBarHeight } = useWebShellTopBarMetrics();
   const sidebar = useWebSidebarState();
   const hasHeader = options?.hasHeader ?? false;
 
-  const topBarInset =
-    sidebar && !sidebar.open ? WEB_SHELL_TOP_BAR_HEIGHT : 0;
+  const topBarInset = sidebar && !sidebar.open ? topBarHeight : 0;
 
   const paddingHorizontal =
     contentPaddingH ?? V.appPadH;

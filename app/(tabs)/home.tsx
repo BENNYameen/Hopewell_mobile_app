@@ -11,7 +11,6 @@ import {
   Modal,
   Platform,
   Pressable,
-  RefreshControl,
   StyleSheet,
   Text,
   View,
@@ -21,17 +20,18 @@ import { TabScreen } from "components/vajra/TabScreen";
 import { useFocusEffect } from "@react-navigation/native";
 
 import {
-  useGetActiveChargingSessionQuery,
   useGetChargingSessionsQuery,
   useStopChargingMutation,
 } from "@/charging/charging.api";
 import { useGetChargersQuery } from "@/charging/stations.api";
-import { useChargingSocket } from "@/charging/charging.socket";
 import { isSessionLive, sessionStatusLabel } from "@/charging/sessionStatus";
+import { useLiveChargingSession } from "@/charging/useLiveChargingSession";
 import { confirmAction, showAlert } from "@/utils/confirmAction";
 import { useGetMeQuery } from "@/profile/profile.api";
 import { useGetWalletBalanceQuery } from "@/wallet/wallet.api";
-import { V } from "@/theme/vajra";
+import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
+import { useThemedStyles, useVajraColors } from "@/hooks/use-vajra-colors";
+import type { VajraColors } from "@/theme/vajra-colors";
 import { IconSymbol } from "components/ui/icon-symbol";
 import { PulsingLiveDot } from "components/vajra/PulsingLiveDot";
 
@@ -52,44 +52,40 @@ const formatDateTime = (value: string | null) => {
   return `${day} ${month}, ${time.toUpperCase()}`;
 };
 
-function durationMin(startTime: string, liveSec?: number | null) {
-  if (liveSec != null && liveSec >= 0) {
-    return Math.max(0, Math.round(liveSec / 60));
-  }
-  return Math.max(
-    0,
-    Math.round((Date.now() - new Date(startTime).getTime()) / 60_000),
-  );
-}
-
 export default function HomeDashboard() {
   const router = useRouter();
+  const colors = useVajraColors();
+  const styles = useThemedStyles(createHomeStyles);
   const { bottom: tabBottom } = useTabScreenInsets();
   const googleMapsApiKey =
     Constants.expoConfig?.extra?.googleMapsApiKey ??
     Constants.manifest2?.extra?.expoClient?.extra?.googleMapsApiKey ??
     "";
-  const { data: me } = useGetMeQuery();
+  const { data: me, refetch: refetchMe, isFetching: meFetching } = useGetMeQuery();
   const {
     data: wallet,
     isLoading: walletLoading,
+    isFetching: walletFetching,
     refetch: refetchWallet,
   } = useGetWalletBalanceQuery();
   const {
     data: sessionsData,
     isLoading: sessionsLoading,
+    isFetching: sessionsFetching,
     refetch: refetchSessions,
   } = useGetChargingSessionsQuery({ status: "all" });
-  const { data: stations = [] } = useGetChargersQuery();
   const {
-    data: activeSession,
+    data: stations = [],
+    isFetching: stationsFetching,
+    refetch: refetchStations,
+  } = useGetChargersQuery();
+  const {
+    live,
     refetch: refetchActive,
     isFetching,
     isLoading,
     isError,
-  } = useGetActiveChargingSessionQuery(undefined, {
-    pollingInterval: 15_000,
-  });
+  } = useLiveChargingSession();
   const [stopCharging, { isLoading: stopping }] = useStopChargingMutation();
   const [showStopConfirm, setShowStopConfirm] = useState(false);
 
@@ -98,7 +94,9 @@ export default function HomeDashboard() {
       refetchActive();
       refetchWallet();
       refetchSessions();
-    }, [refetchActive, refetchWallet, refetchSessions]),
+      refetchStations();
+      refetchMe();
+    }, [refetchActive, refetchMe, refetchSessions, refetchStations, refetchWallet]),
   );
 
   const walletSummary = useMemo(() => {
@@ -116,19 +114,13 @@ export default function HomeDashboard() {
     return pastCount === 1 ? "1 session" : `${pastCount} sessions`;
   }, [sessionsData, sessionsLoading]);
 
-  const liveSession = activeSession ?? null;
-  const isLive = liveSession ? isSessionLive(liveSession.status) : false;
-  const { data: wsData, connected: wsConnected } = useChargingSocket(
-    liveSession?.id ?? null,
-    !!liveSession && isLive,
-  );
-
-  const liveStatus = wsData?.status ?? liveSession?.status ?? "";
-  const energy = wsData?.energy_kwh ?? liveSession?.energy_kwh ?? 0;
-  const cost = wsData?.cost ?? liveSession?.cost ?? 0;
-  const dur = liveSession
-    ? durationMin(liveSession.start_time, wsData?.duration_sec)
-    : 0;
+  const liveSession = live?.session ?? null;
+  const isLive = live ? isSessionLive(live.status) : false;
+  const liveStatus = live?.status ?? "";
+  const energy = live?.energyKwh ?? 0;
+  const cost = live?.cost ?? 0;
+  const dur = live?.durationMin ?? 0;
+  const wsConnected = live?.wsConnected ?? false;
 
   const firstName = useMemo(() => {
     const raw = me?.full_name?.trim() ?? "";
@@ -213,16 +205,9 @@ export default function HomeDashboard() {
     }
   };
 
-  const refreshControl = (
-    <RefreshControl
-      refreshing={isFetching}
-      onRefresh={() => {
-        refetchActive();
-        refetchWallet();
-        refetchSessions();
-      }}
-      tintColor={V.primary}
-    />
+  const { refreshControl } = usePullToRefresh(
+    [refetchActive, refetchWallet, refetchSessions, refetchStations, refetchMe],
+    isFetching || walletFetching || sessionsFetching || stationsFetching || meFetching,
   );
 
   const dashboardBody = (
@@ -236,7 +221,7 @@ export default function HomeDashboard() {
 
       {isLoading ? (
         <View style={styles.loadingWrap}>
-          <ActivityIndicator size="large" color={V.primary} />
+          <ActivityIndicator size="large" color={colors.primary} />
         </View>
       ) : null}
 
@@ -278,7 +263,7 @@ export default function HomeDashboard() {
             </View>
             <View style={styles.liveMain}>
               <Text style={styles.liveTitle} numberOfLines={1}>
-                {wsData?.charger_name ?? liveSession.charger_id}
+                {live?.chargerLabel ?? liveSession.charger_id}
               </Text>
               <Text style={styles.liveMeta}>
                 Connector {liveSession.connector_id}
@@ -318,7 +303,7 @@ export default function HomeDashboard() {
                 disabled={stopping}
               >
                 {stopping ? (
-                  <ActivityIndicator color={V.card} size="small" />
+                  <ActivityIndicator color={colors.card} size="small" />
                 ) : (
                   <Text style={styles.btnStopText}>Stop Charging</Text>
                 )}
@@ -331,7 +316,7 @@ export default function HomeDashboard() {
       {!isLoading && !liveSession && !hasLoadError ? (
         <View style={styles.emptyCard}>
           <View style={styles.emptyIcon}>
-            <IconSymbol name="bolt.fill" size={32} color={V.primary} />
+            <IconSymbol name="bolt.fill" size={32} color={colors.primary} />
           </View>
           <Text style={styles.emptyTitle}>No active session</Text>
           <Text style={styles.emptyBody}>
@@ -460,7 +445,8 @@ export default function HomeDashboard() {
   );
 }
 
-const styles = StyleSheet.create({
+const createHomeStyles = (V: VajraColors) =>
+  StyleSheet.create({
   greeting: {
     fontSize: 24,
     fontWeight: "700",
@@ -718,7 +704,7 @@ const styles = StyleSheet.create({
     width: "100%",
     height: 180,
     borderRadius: 12,
-    backgroundColor: "#E7EEF8",
+    backgroundColor: V.mapSurface,
   },
   webDot: {
     position: "absolute",
@@ -734,7 +720,7 @@ const styles = StyleSheet.create({
     width: "100%",
     height: 180,
     borderRadius: 12,
-    backgroundColor: "#E7EEF8",
+    backgroundColor: V.mapSurface,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 16,
@@ -798,7 +784,7 @@ const styles = StyleSheet.create({
     borderColor: V.borderNavy,
     paddingHorizontal: 16,
     paddingVertical: 10,
-    backgroundColor: "#F5F7FB",
+    backgroundColor: V.panelTint,
   },
   confirmCancelText: {
     fontSize: 14,
@@ -816,4 +802,4 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: V.card,
   },
-});
+  });

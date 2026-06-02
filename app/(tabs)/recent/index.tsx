@@ -4,7 +4,6 @@ import {
   FlatList,
   Platform,
   Pressable,
-  RefreshControl,
   StyleSheet,
   Text,
   View,
@@ -12,7 +11,9 @@ import {
 import { useFocusEffect } from "@react-navigation/native";
 
 import { useGetChargingSessionsQuery } from "@/charging/charging.api";
-import { isSessionLive } from "@/charging/sessionStatus";
+import { isSessionLive, sessionStatusLabel } from "@/charging/sessionStatus";
+import { useLiveChargingSession } from "@/charging/useLiveChargingSession";
+import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { useTabScreenInsets } from "@/hooks/use-tab-screen-insets";
 import { useWebContentPadding } from "@/hooks/use-web-content-padding";
 import { V } from "@/theme/vajra";
@@ -64,8 +65,14 @@ export function RecentContent({
   const resolvedTop = topPadding ?? tabInsets.top;
   const listBottom = tabInsets.bottom;
   const {
-    data: activeSessions,
+    live,
+    refetch: refetchActive,
+    isFetching: activeFetching,
     isError: activeError,
+  } = useLiveChargingSession();
+  const {
+    data: activeSessions,
+    isError: sessionsError,
     refetch,
     isFetching,
   } = useGetChargingSessionsQuery(
@@ -81,39 +88,31 @@ export function RecentContent({
   useFocusEffect(
     useCallback(() => {
       refetch();
-    }, [refetch]),
+      refetchActive();
+    }, [refetch, refetchActive]),
+  );
+  const { refreshControl } = usePullToRefresh(
+    [refetch, refetchActive],
+    isFetching || activeFetching,
   );
   const sessions = useMemo(
     () => (Array.isArray(activeSessions) ? activeSessions : []),
     [activeSessions],
   );
-  const liveSession = useMemo(
-    () => sessions.find((session) => isSessionLive(session.status)),
-    [sessions],
-  );
-  const liveFields = useMemo(() => {
-    if (!liveSession) {
-      return null;
-    }
-    return {
-      startedAt: liveSession.start_time,
-      stationName: liveSession.charger_id,
-      location: `Connector ${liveSession.connector_id}`,
-      energyKwh: liveSession.energy_kwh,
-      durationMin: Math.max(
-        0,
-        Math.round(
-          (Date.now() - new Date(liveSession.start_time).getTime()) / 60000,
-        ),
-      ),
-      batteryStartPct: undefined,
-      batteryEndPct: undefined,
-    };
-  }, [liveSession]);
-  const listSessions = useMemo(
-    () => sessions.filter((session) => session.id !== liveSession?.id),
-    [sessions, liveSession?.id],
-  );
+  const liveSession = live?.session ?? null;
+  const listSessions = useMemo(() => {
+    const activeId = liveSession?.id;
+    return sessions.filter((session) => {
+      if (activeId && session.id === activeId) {
+        return false;
+      }
+      if (isSessionLive(session.status)) {
+        return false;
+      }
+      return true;
+    });
+  }, [liveSession?.id, sessions]);
+  const hasLoadError = activeError || sessionsError;
 
   const openDetails = (sessionId: string) => {
     router.push({ pathname: "/recent/[id]", params: { id: sessionId } });
@@ -188,68 +187,63 @@ export function RecentContent({
               Live status and past activity
             </Text>
           </View>
-          <Pressable
-            onPress={() => refetch()}
-            disabled={isFetching}
-            style={[styles.refreshBtn, isFetching && styles.refreshBtnDisabled]}
-          >
-            <Text style={styles.refreshBtnText}>
-              {isFetching ? "Refreshing..." : "Refresh"}
-            </Text>
-          </Pressable>
         </View>
       ) : null}
 
-      {activeError ? (
+      {hasLoadError ? (
         <Text style={styles.errorBanner}>
           Unable to load sessions. Try refreshing.
         </Text>
       ) : null}
 
-      {liveSession && liveFields ? (
+      {live ? (
               <View style={styles.liveWrap}>
                 <Text style={styles.sectionLabel}>Live now</Text>
                 <Pressable
-                  onPress={() => openDetails(liveSession.id)}
+                  onPress={() => openDetails(live.session.id)}
                   style={styles.liveCard}
                 >
                   <View style={styles.liveHeader}>
                     <View style={styles.liveBadge}>
                       <View style={styles.liveBadgeInner}>
                         <PulsingLiveDot />
-                        <Text style={styles.liveBadgeText}>Charging</Text>
+                        <Text style={styles.liveBadgeText}>
+                          {sessionStatusLabel(live.status)}
+                        </Text>
                       </View>
                     </View>
                     <Text style={styles.liveTime}>
-                      {formatDateTime(liveFields.startedAt)}
+                      {formatDateTime(live.session.start_time)}
                     </Text>
                   </View>
-                  <Text style={styles.liveTitle}>{liveFields.stationName}</Text>
-                  <Text style={styles.liveMeta}>{liveFields.location}</Text>
+                  <Text style={styles.liveTitle}>{live.chargerLabel}</Text>
+                  <Text style={styles.liveMeta}>
+                    Connector {live.session.connector_id}
+                  </Text>
                   <View style={styles.liveStats}>
                     <View>
                       <Text style={styles.statLabel}>Energy</Text>
                       <Text style={styles.statValue}>
-                        {(liveSession.energy_kwh ?? 0).toFixed(2)} kWh
+                        {live.energyKwh.toFixed(2)} kWh
                       </Text>
                     </View>
                     <View>
                       <Text style={styles.statLabel}>Duration</Text>
                       <Text style={styles.statValue}>
-                        {liveFields.durationMin} min
+                        {live.durationMin} min
                       </Text>
                     </View>
                     <View>
                       <Text style={styles.statLabel}>Cost</Text>
                       <Text style={styles.statValue}>
-                        ₹{(liveSession.cost ?? 0).toFixed(2)}
+                        ₹{live.cost.toFixed(2)}
                       </Text>
                     </View>
                   </View>
                 </Pressable>
               </View>
             ) : null}
-            {liveSession && listSessions.length > 0 ? (
+            {live && listSessions.length > 0 ? (
               <Text style={[styles.sectionLabel, styles.pastSessionsLabel]}>
                 Past sessions
               </Text>
@@ -274,12 +268,10 @@ export function RecentContent({
           : null,
         { paddingBottom: listBottom },
       ]}
-      refreshControl={
-        <RefreshControl refreshing={isFetching} onRefresh={refetch} />
-      }
+      refreshControl={refreshControl}
       ListHeaderComponent={listHeader}
       ListFooterComponent={
-          sessions.length === 0 && !activeError ? (
+          sessions.length === 0 && !hasLoadError ? (
             <View style={styles.emptyCard}>
               <Text style={styles.emptyText}>No sessions yet.</Text>
               <Pressable

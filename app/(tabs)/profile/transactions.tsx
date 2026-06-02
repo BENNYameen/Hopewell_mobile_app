@@ -1,9 +1,9 @@
-import { useRouter } from "expo-router";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 
-import { TabScreen } from "components/vajra/TabScreen";
+import { ProfileSubScreen } from "components/vajra/ProfileSubScreen";
 import { V } from "@/theme/vajra";
 import { useGetWalletTransactionsQuery } from "@/wallet/wallet.api";
+import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { IconSymbol } from "components/ui/icon-symbol";
 
 const formatDateTime = (value: string) => {
@@ -24,31 +24,12 @@ const formatDateTime = (value: string) => {
 };
 
 export default function Transactions() {
-  const router = useRouter();
-  const { data, isLoading, isError, refetch } =
+  const { data, isLoading, isError, refetch, isFetching } =
     useGetWalletTransactionsQuery(50);
+  const { refreshControl } = usePullToRefresh(refetch, isFetching);
 
   return (
-    <TabScreen
-      header={
-        <View style={styles.headerRow}>
-          <Pressable style={styles.backBtn} onPress={() => router.back()}>
-            <IconSymbol name="arrow.left" size={18} color={V.headingDeep} />
-          </Pressable>
-          <Text
-            style={[
-              styles.title,
-              Platform.OS === "web" ? styles.titleWeb : null,
-            ]}
-          >
-            Transactions
-          </Text>
-          <Pressable style={styles.refreshButton} onPress={() => refetch()}>
-            <Text style={styles.refreshText}>Refresh</Text>
-          </Pressable>
-        </View>
-      }
-    >
+    <ProfileSubScreen title="Transactions" refreshControl={refreshControl}>
       {isError ? (
         <View style={styles.errorBox}>
           <Text style={styles.errorText}>
@@ -91,76 +72,54 @@ export default function Transactions() {
           <Text style={styles.body}>No transactions yet.</Text>
         )}
       </View>
-    </TabScreen>
+    </ProfileSubScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  headerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 16,
-    ...Platform.select({
-      web: {
-        gap: 12,
-        justifyContent: "flex-start",
-      },
-      default: {
-        justifyContent: "space-between",
-      },
-    }),
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: V.headingDeep,
-  },
-  titleWeb: {
-    flex: 1,
-  },
-  backBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: V.borderNavy,
-    backgroundColor: V.card,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  refreshButton: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: V.borderNavy,
-    backgroundColor: V.card,
-  },
-  refreshText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: V.heading,
+  list: {
+    gap: 12,
   },
   body: {
     fontSize: 14,
-    color: V.bodySecondary,
     fontWeight: "600",
-    textAlign: "center",
-    paddingTop: 48,
+    color: V.bodySecondary,
   },
-  list: {
-    paddingTop: 6,
+  errorBox: {
+    backgroundColor: V.errorSurface,
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: V.errorBorder,
+    marginBottom: 16,
+  },
+  errorText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: V.error,
+  },
+  retryButton: {
+    alignSelf: "flex-start",
+    marginTop: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: V.error,
+    borderRadius: V.radiusPill,
+  },
+  retryText: {
+    color: V.card,
+    fontSize: 12,
+    fontWeight: "700",
   },
   txCard: {
-    backgroundColor: V.card,
-    borderRadius: V.radiusCard,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: V.borderNavy,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    backgroundColor: V.card,
+    borderRadius: V.radiusCard,
+    borderWidth: 1,
+    borderColor: V.borderNavy,
+    padding: 14,
+    gap: 12,
     ...V.shadowCard,
   },
   txIconWrap: {
@@ -170,56 +129,29 @@ const styles = StyleSheet.create({
     backgroundColor: V.tealMuted,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 12,
   },
   txInfo: {
     flex: 1,
+    gap: 4,
   },
   txTitle: {
     fontSize: 14,
     fontWeight: "700",
-    color: V.headingMuted,
+    color: V.headingDeep,
   },
   txMeta: {
-    marginTop: 3,
     fontSize: 12,
     fontWeight: "600",
-    color: V.bodySecondary,
+    color: V.label,
   },
   txAmount: {
     fontSize: 14,
     fontWeight: "800",
   },
-  txCredit: {
-    color: V.primary,
-  },
   txDebit: {
     color: V.error,
   },
-  errorBox: {
-    backgroundColor: V.errorSurface,
-    borderRadius: 12,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: V.errorBorder,
-    marginBottom: 12,
-  },
-  errorText: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: V.error,
-  },
-  retryButton: {
-    alignSelf: "flex-start",
-    marginTop: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    backgroundColor: V.error,
-    borderRadius: 999,
-  },
-  retryText: {
-    color: V.card,
-    fontSize: 12,
-    fontWeight: "700",
+  txCredit: {
+    color: V.primary,
   },
 });

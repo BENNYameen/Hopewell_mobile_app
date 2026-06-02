@@ -1,7 +1,9 @@
 import { Redirect, Tabs, useRouter } from "expo-router";
+import { useMemo } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 
 import { WebSidebarProvider, useWebSidebar } from "@/context/web-sidebar";
+import { useVajraColors } from "@/hooks/use-vajra-colors";
 import { useAppSelector } from "@/store/hooks";
 import { V } from "@/theme/vajra";
 
@@ -46,6 +48,50 @@ function WebTabShell({
   tabInactive: string;
 }) {
   const { open, close } = useWebSidebar();
+  const colors = useVajraColors();
+  const shellStyles = useMemo(
+    () =>
+      StyleSheet.create({
+        root: {
+          flex: 1,
+          position: "relative",
+          backgroundColor: colors.pageBg,
+          width: "100%",
+          minHeight: "100vh",
+          height: "100vh",
+          overflow: "hidden",
+        },
+        main: {
+          flex: 1,
+          width: "100%",
+          minWidth: 0,
+          minHeight: 0,
+          overflow: "hidden",
+        },
+        backdrop: {
+          position: "absolute",
+          top: 0,
+          right: 0,
+          bottom: 0,
+          left: 0,
+          backgroundColor: "rgba(15, 23, 42, 0.45)",
+          zIndex: 40,
+        },
+        sidebarDrawer: {
+          position: "absolute",
+          top: 0,
+          bottom: 0,
+          left: 0,
+          zIndex: 50,
+          shadowColor: colors.shadowNavy,
+          shadowOpacity: 0.12,
+          shadowRadius: 16,
+          shadowOffset: { width: 4, height: 0 },
+          elevation: 8,
+        },
+      }),
+    [colors.pageBg, colors.shadowNavy],
+  );
 
   return (
     <View style={shellStyles.root}>
@@ -98,42 +144,3 @@ function WebTabShell({
   );
 }
 
-const shellStyles = StyleSheet.create({
-  root: {
-    flex: 1,
-    position: "relative",
-    backgroundColor: V.pageBg,
-    width: "100%",
-    minHeight: "100vh",
-    height: "100vh",
-    overflow: "hidden",
-  },
-  main: {
-    flex: 1,
-    width: "100%",
-    minWidth: 0,
-    minHeight: 0,
-    overflow: "hidden",
-  },
-  backdrop: {
-    position: "absolute",
-    top: 0,
-    right: 0,
-    bottom: 0,
-    left: 0,
-    backgroundColor: "rgba(15, 23, 42, 0.45)",
-    zIndex: 40,
-  },
-  sidebarDrawer: {
-    position: "absolute",
-    top: 0,
-    bottom: 0,
-    left: 0,
-    zIndex: 50,
-    shadowColor: "#0f172a",
-    shadowOpacity: 0.12,
-    shadowRadius: 16,
-    shadowOffset: { width: 4, height: 0 },
-    elevation: 8,
-  },
-});
