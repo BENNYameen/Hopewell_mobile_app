@@ -104,7 +104,7 @@ export default function Login() {
       const hint =
         err instanceof TypeError &&
         String((err as Error).message).toLowerCase().includes("fetch")
-          ? " Check the backend is running and EXPO_PUBLIC_API_BASE_URL in .env matches it, then restart Expo. On web, requests are proxied through the dev server to avoid CORS."
+          ? " Check EXPO_PUBLIC_API_BASE_URL in .env and restart Expo. If you see CORS errors on web, set EXPO_PUBLIC_USE_METRO_API_PROXY=true to route through the dev server."
           : "";
       setError(`Unable to send code. Try again. ${err}${hint}`);
     } finally {

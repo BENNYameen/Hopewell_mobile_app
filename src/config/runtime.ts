@@ -60,7 +60,7 @@ const useDevWebApiProxy =
   __DEV__ &&
   !isTestEnv &&
   Platform.OS === "web" &&
-  process.env.EXPO_PUBLIC_USE_METRO_API_PROXY !== "false" &&
+  process.env.EXPO_PUBLIC_USE_METRO_API_PROXY === "true" &&
   Boolean(envBackedApi);
 
 function resolveApiBaseUrl(): string {
