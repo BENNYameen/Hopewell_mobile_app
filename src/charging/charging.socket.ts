@@ -1,14 +1,43 @@
-import * as SecureStore from "expo-secure-store";
 import { useEffect, useRef, useState } from "react";
+import { useDispatch } from "react-redux";
+import { ACCESS_TOKEN_KEY } from "@/auth/session";
+import { getItemAsync } from "@/auth/secureStorage";
+import { syncChargingSessionCaches } from "@/charging/chargingCacheSync";
 import { WS_BASE_URL } from "@/config/runtime";
 
-type ChargingUpdate = {
-  status: string;
-  charger_name?: string;
+/** Payload from Vajrabackend `sessionUpdatePayload` over `/ws/charging/:session_id`. */
+export type ChargingUpdate = {
+  session_id?: string;
+  status?: string;
   energy_kwh?: number;
   cost?: number;
+  transaction_ref?: string;
+  transaction_id?: string;
+  charging_state?: string;
+  is_active?: boolean;
+  failure_reason?: string;
+  stop_requested?: boolean;
+  billed_at?: string;
+  charger_id?: string;
+  connector_id?: number;
+  /** Legacy / optional fields */
+  charger_name?: string;
   duration_sec?: number;
   power_kw?: number;
+  /** Stop reason from the "stopped" event (e.g. "LOW_WALLET_BALANCE", "EVDisconnected") */
+  reason?: string;
+  /** Human-readable message from AUTO_STOP_WALLET_LIMIT_REACHED event */
+  message?: string;
+  /** Event type discriminator (e.g. "session_update") */
+  type?: string;
+  /** Wallet amount reserved for this session */
+  reserved_amount?: number;
+  /** SoC at session start — null when charger doesn't report SoC */
+  battery_start_percentage?: number | null;
+  /** Current SoC — null when charger doesn't report SoC */
+  battery_current_percentage?: number | null;
+  /** Pre-formatted SoC string from backend, e.g. "33% → 65%" */
+  battery_display?: string | null;
 };
 
 type ChargingSocketState = {
@@ -17,12 +46,11 @@ type ChargingSocketState = {
   error: string | null;
 };
 
-const ACCESS_TOKEN_KEY = "auth_access_token";
-
 export function useChargingSocket(
   sessionId: string | null,
   enabled = true,
 ) {
+  const dispatch = useDispatch();
   const [state, setState] = useState<ChargingSocketState>({
     data: null,
     connected: false,
@@ -50,7 +78,7 @@ export function useChargingSocket(
     };
 
     const connect = async () => {
-      const token = await SecureStore.getItemAsync(ACCESS_TOKEN_KEY);
+      const token = await getItemAsync(ACCESS_TOKEN_KEY);
       if (!isActive) return;
 
       if (!token) {
@@ -79,6 +107,9 @@ export function useChargingSocket(
         try {
           const parsed = JSON.parse(event.data) as ChargingUpdate;
           setState((prev) => ({ ...prev, data: parsed }));
+          if (sessionId) {
+            syncChargingSessionCaches(dispatch, sessionId, parsed);
+          }
         } catch {
           setState((prev) => ({
             ...prev,
@@ -109,7 +140,7 @@ export function useChargingSocket(
       socket?.close();
       socketRef.current = null;
     };
-  }, [sessionId, enabled]);
+  }, [dispatch, sessionId, enabled]);
 
   return state;
 }

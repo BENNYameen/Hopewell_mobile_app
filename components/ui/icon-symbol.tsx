@@ -15,6 +15,8 @@ const MAPPING: Partial<Record<IconName, MaterialIconName>> = {
   "filter.fill": "filter-alt",
   "charger.fill": "ev-station",
   "map.fill": "map",
+  "location.fill": "place",
+  "chart.bar.fill": "bar-chart",
   "xmark": "close",
   "search": "search",
   "directions": "directions",
@@ -22,18 +24,23 @@ const MAPPING: Partial<Record<IconName, MaterialIconName>> = {
   "heart": "favorite-border",
   "arrow.left": "arrow-back",
   "arrow.right": "arrow-forward",
+  menu: "menu",
   "plus": "add",
   "phone": "phone",
   "email": "email",
   "description": "description",
   "policy": "policy",
   "help": "help-outline",
+  "info.circle.fill": "info",
   "gift.fill": "card-giftcard",
   "bolt.fill": "bolt",
+  "wallet.pass.fill": "account-balance-wallet",
 
   "house.fill": "home",
   "paperplane.fill": "send",
   "chevron.right": "chevron-right",
+  "chevron.left": "chevron-left",
+  "chevron.down": "expand-more",
 };
 
 const FALLBACK_ICON: MaterialIconName = "help-outline";

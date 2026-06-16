@@ -1,22 +1,46 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  Alert,
+  ActivityIndicator,
   Animated,
+  Easing,
+  Modal,
+  Platform,
   Pressable,
-  RefreshControl,
-  ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
 
+import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
+import { TabScreen } from "components/vajra/TabScreen";
+
 import {
   useGetChargingSessionQuery,
   useStopChargingMutation,
 } from "@/charging/charging.api";
-import { useChargingSocket } from "@/charging/charging.socket";
+import { useChargingSocket, type ChargingUpdate } from "@/charging/charging.socket";
+import { mergeSessionDetailMetrics } from "@/charging/sessionMetrics";
+import { isSessionLive, sessionStatusLabel } from "@/charging/sessionStatus";
+import { useLiveChargingSession } from "@/charging/useLiveChargingSession";
+import { confirmAction, showAlert } from "@/utils/confirmAction";
+import { V } from "@/theme/vajra";
 import { IconSymbol } from "components/ui/icon-symbol";
+
+const STOP_REASON_LABELS: Record<string, string> = {
+  LOW_WALLET_BALANCE: "Wallet spending limit reached",
+  EVDisconnected: "Cable unplugged",
+  Local: "Cable unplugged",
+  Remote: "Charging stopped",
+  EmergencyStop: "Emergency stop triggered",
+  PowerLoss: "Power loss at station",
+  MISSING_STOP_TRANSACTION: "No response from charger",
+  CHARGER_OFFLINE: "Charger went offline",
+  START_TIMEOUT: "Session failed to start",
+};
+
+const getStopReasonLabel = (reason?: string) =>
+  (reason && STOP_REASON_LABELS[reason]) ?? (reason ? "Charging stopped" : "");
 
 const formatDateTime = (value: string | null) => {
   if (!value) {
@@ -37,15 +61,6 @@ const formatDateTime = (value: string | null) => {
   return `${day} ${month}, ${time.toUpperCase()}`;
 };
 
-const getDurationMinutes = (start: string, end: string | null) => {
-  const startMs = new Date(start).getTime();
-  const endMs = end ? new Date(end).getTime() : Date.now();
-  if (Number.isNaN(startMs) || Number.isNaN(endMs)) {
-    return "--";
-  }
-  return Math.max(0, Math.round((endMs - startMs) / 60000));
-};
-
 const formatNumber = (value: number | null | undefined, decimals = 2) => {
   if (value == null || Number.isNaN(value)) {
     return "--";
@@ -53,10 +68,16 @@ const formatNumber = (value: number | null | undefined, decimals = 2) => {
   return Number(value).toFixed(decimals);
 };
 
+const LIVE_SESSION_POLL_MS = 15_000;
+
 export default function SessionDetails() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const sessionId = typeof id === "string" ? id : "";
+  const { live: activeLive } = useLiveChargingSession({
+    enabled: !!sessionId,
+  });
+  const isViewingActiveSession = activeLive?.session.id === sessionId;
   const {
     data: session,
     isLoading,
@@ -66,36 +87,78 @@ export default function SessionDetails() {
     refetch,
   } = useGetChargingSessionQuery(sessionId, {
     skip: !sessionId,
+    pollingInterval:
+      isViewingActiveSession && activeLive && isSessionLive(activeLive.status)
+        ? LIVE_SESSION_POLL_MS
+        : session && isSessionLive(session.status)
+          ? LIVE_SESSION_POLL_MS
+          : 0,
   });
 
   const shouldConnect =
-    session?.status === "charging" || session?.status === "starting";
+    !!session &&
+    !isViewingActiveSession &&
+    isSessionLive(session.status);
   const { data: liveData } = useChargingSocket(
     shouldConnect ? sessionId : null,
     shouldConnect,
   );
   const [stopCharging, { isLoading: isStopping, error: stopError }] =
     useStopChargingMutation();
-  const liveEnergy = liveData?.energy_kwh ?? session?.energy_kwh;
-  const liveCost = liveData?.cost ?? session?.cost;
-  const liveStatus = liveData?.status ?? session?.status;
-  const liveDurationMin =
-    liveData?.duration_sec != null
-      ? Math.max(0, Math.round(liveData.duration_sec / 60))
-      : null;
-  const durationMin = useMemo(() => {
-    if (!session?.start_time) {
-      return "--";
+  const [showStopConfirm, setShowStopConfirm] = useState(false);
+  const [autoStopEvent, setAutoStopEvent] = useState<ChargingUpdate | null>(null);
+  const [stoppedEvent, setStoppedEvent] = useState<ChargingUpdate | null>(null);
+  const [showSessionSummary, setShowSessionSummary] = useState(false);
+
+  const mergedLive = useMemo(() => {
+    if (session) {
+      return mergeSessionDetailMetrics(session, liveData, activeLive);
     }
-    if (liveDurationMin != null) {
-      return liveDurationMin;
+    if (isViewingActiveSession && activeLive) {
+      return activeLive;
     }
-    return getDurationMinutes(session.start_time, session.end_time);
-  }, [session?.start_time, session?.end_time, liveDurationMin]);
+    return null;
+  }, [activeLive, isViewingActiveSession, liveData, session]);
+
+  const displaySession = session ?? activeLive?.session ?? null;
+
+  const liveEnergy = mergedLive?.energyKwh;
+  const liveCost = mergedLive?.cost;
+  const liveStatus = mergedLive?.status ?? displaySession?.status ?? "";
+  const durationMin = mergedLive?.durationMin ?? "--";
+  const chargerLabel =
+    mergedLive?.chargerLabel ?? displaySession?.charger_id ?? "";
+  const liveBattery =
+    liveData?.battery_display ??
+    (liveData?.battery_current_percentage != null
+      ? `${liveData.battery_current_percentage}%`
+      : null);
   const pulseAnim = useRef(new Animated.Value(0)).current;
+  const batteryBarAnim = useRef(new Animated.Value(0)).current;
+  const batteryTextAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    if (liveStatus !== "charging") {
+    const pct = liveData?.battery_current_percentage ?? 0;
+    Animated.timing(batteryBarAnim, {
+      toValue: pct,
+      duration: 900,
+      useNativeDriver: false,
+      easing: Easing.out(Easing.quad),
+    }).start();
+  }, [liveData?.battery_current_percentage, batteryBarAnim]);
+
+  useEffect(() => {
+    if (!liveBattery) return;
+    batteryTextAnim.setValue(0.3);
+    Animated.timing(batteryTextAnim, {
+      toValue: 1,
+      duration: 500,
+      useNativeDriver: true,
+    }).start();
+  }, [liveBattery, batteryTextAnim]);
+
+  useEffect(() => {
+    if (!isSessionLive(liveStatus)) {
       pulseAnim.setValue(0);
       return;
     }
@@ -121,6 +184,21 @@ export default function SessionDetails() {
       animation.stop();
     };
   }, [liveStatus, pulseAnim]);
+
+  const { refreshControl } = usePullToRefresh(refetch, isFetching);
+
+  useEffect(() => {
+    if (!liveData) return;
+    if (liveData.status === "AUTO_STOP_WALLET_LIMIT_REACHED") {
+      setAutoStopEvent(liveData);
+    } else if (liveData.status === "stopped") {
+      setStoppedEvent(liveData);
+      setAutoStopEvent(null);
+      setShowSessionSummary(true);
+      refetch();
+    }
+  }, [liveData, refetch]);
+
   const errorStatus =
     typeof error === "object" && error
       ? "status" in error
@@ -143,106 +221,122 @@ export default function SessionDetails() {
         ? "Unable to stop charging."
         : "";
 
-  const confirmStopCharging = () => {
-    Alert.alert(
+  const confirmStopCharging = async () => {
+    if (!sessionId) return;
+    if (Platform.OS === "web") {
+      setShowStopConfirm(true);
+      return;
+    }
+    const confirmed = await confirmAction(
       "Stop charging",
       "Are you sure you want to stop this session?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Stop",
-          style: "destructive",
-          onPress: async () => {
-            if (!sessionId) {
-              return;
-            }
-            try {
-              await stopCharging({ session_id: sessionId }).unwrap();
-              refetch();
-            } catch {
-              // error message handled inline
-            }
-          },
-        },
-      ],
+      "Stop",
     );
+    if (!confirmed) return;
+    try {
+      await stopCharging({ session_id: sessionId }).unwrap();
+      refetch();
+    } catch {
+      // error message handled inline via stopErrorMessage
+    }
+  };
+
+  const handleConfirmStop = async () => {
+    if (!sessionId) return;
+    try {
+      await stopCharging({ session_id: sessionId }).unwrap();
+      setShowStopConfirm(false);
+      refetch();
+    } catch {
+      setShowStopConfirm(false);
+      showAlert("Could not stop", "Try again or finish from the charger.");
+    }
   };
 
   if (!sessionId) {
     return (
-      <View style={styles.container}>
-        <Text style={styles.header}>Session not found</Text>
-        <Pressable
-          onPress={() => router.replace("/recent")}
-          style={styles.backButton}
-        >
-          <IconSymbol name="chevron.right" size={18} color="#0F172A" />
-          <Text style={styles.backText}>Back</Text>
-        </Pressable>
-      </View>
+      <TabScreen
+        header={
+          <Pressable
+            onPress={() => router.replace("/recent")}
+            style={styles.backBtn}
+          >
+            <IconSymbol name="arrow.left" size={18} color={V.headingDeep} />
+          </Pressable>
+        }
+      >
+        <Text style={styles.stateMessage}>Session not found</Text>
+      </TabScreen>
     );
   }
 
-  if (isLoading) {
+  if (isLoading && !displaySession) {
     return (
-      <View style={styles.container}>
-        <Text style={styles.header}>Loading session...</Text>
-      </View>
+      <TabScreen>
+        <Text style={styles.stateMessage}>Loading session...</Text>
+      </TabScreen>
     );
   }
 
-  if (isError || !session) {
+  if ((isError || !displaySession) && !mergedLive) {
     return (
-      <View style={styles.container}>
-        <Text style={styles.header}>
+      <TabScreen
+        header={
+          <Pressable
+            onPress={() => router.replace("/recent")}
+            style={styles.backBtn}
+          >
+            <IconSymbol name="arrow.left" size={18} color={V.headingDeep} />
+          </Pressable>
+        }
+      >
+        <Text style={styles.stateMessage}>
           {isNotFound ? "Session not found" : "Unable to load session"}
         </Text>
-        <Pressable
-          onPress={() => router.replace("/recent")}
-          style={styles.backButton}
-        >
-          <IconSymbol name="chevron.right" size={18} color="#0F172A" />
-          <Text style={styles.backText}>Back</Text>
-        </Pressable>
-      </View>
+      </TabScreen>
     );
   }
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
-      refreshControl={
-        <RefreshControl refreshing={isFetching} onRefresh={refetch} />
+    <>
+    <TabScreen
+      refreshControl={refreshControl}
+      header={
+        <View style={styles.topBar}>
+          <Pressable
+            onPress={() => router.replace("/recent")}
+            style={styles.backBtn}
+          >
+            <IconSymbol name="arrow.left" size={18} color={V.headingDeep} />
+          </Pressable>
+          <Text style={styles.topTitle} numberOfLines={1}>
+            Session details
+          </Text>
+          <Pressable
+            onPress={refetch}
+            style={styles.backBtn}
+            disabled={isFetching}
+          >
+            {isFetching ? (
+              <ActivityIndicator size="small" color={V.primary} />
+            ) : (
+              <IconSymbol name="arrow.clockwise" size={16} color={V.headingDeep} />
+            )}
+          </Pressable>
+        </View>
       }
     >
-      <View style={styles.topBar}>
-        <Pressable
-          onPress={() => router.replace("/recent")}
-          style={styles.backButton}
-        >
-          <IconSymbol
-            name="chevron.right"
-            size={18}
-            color="#0F172A"
-            style={styles.backIcon}
-          />
-          <Text style={styles.backText}>Back</Text>
-        </Pressable>
-        <Text style={styles.topTitle}>Session details</Text>
-      </View>
-
       <View style={styles.summaryCard}>
         <View style={styles.summaryHeader}>
           <View style={styles.iconWrap}>
-            <IconSymbol name="charger.fill" size={26} color="#FFFFFF" />
+            <IconSymbol name="bolt.fill" size={26} color={V.primary} />
           </View>
           <View style={styles.summaryText}>
-            <Text style={styles.summaryTitle}>
-              {liveData?.charger_name ?? session.charger_id}
+            <Text style={styles.summaryTitle} numberOfLines={2}>
+              {chargerLabel}
             </Text>
             <Text style={styles.summaryMeta}>
-              Connector {session.connector_id}
+              Connector {displaySession?.connector_id}
             </Text>
           </View>
         </View>
@@ -250,7 +344,7 @@ export default function SessionDetails() {
           <Text style={styles.summaryLabel}>Status</Text>
           <View style={styles.statusPill}>
             <View style={styles.statusRow}>
-              {liveStatus === "charging" ? (
+              {isSessionLive(liveStatus) ? (
                 <Animated.View
                   style={[
                     styles.statusDot,
@@ -272,7 +366,7 @@ export default function SessionDetails() {
                 />
               ) : null}
               <Text style={styles.statusText}>
-                {liveStatus === "charging" ? "Charging" : "Completed"}
+                {sessionStatusLabel(liveStatus)}
               </Text>
             </View>
           </View>
@@ -280,16 +374,25 @@ export default function SessionDetails() {
         <View style={styles.summaryRow}>
           <Text style={styles.summaryLabel}>Started</Text>
           <Text style={styles.summaryValue}>
-            {formatDateTime(session.start_time)}
+            {formatDateTime(displaySession?.start_time ?? null)}
           </Text>
         </View>
         <View style={styles.summaryRow}>
           <Text style={styles.summaryLabel}>Ended</Text>
           <Text style={styles.summaryValue}>
-            {formatDateTime(session.end_time)}
+            {formatDateTime(displaySession?.end_time ?? null)}
           </Text>
         </View>
       </View>
+
+      {autoStopEvent && !showSessionSummary ? (
+        <View style={styles.autoStopBanner}>
+          <IconSymbol name="exclamationmark.triangle.fill" size={15} color={V.error} />
+          <Text style={styles.autoStopBannerText}>
+            Spending limit reached, stopping...
+          </Text>
+        </View>
+      ) : null}
 
       <View style={styles.grid}>
         <View style={styles.gridCard}>
@@ -303,20 +406,43 @@ export default function SessionDetails() {
         <View style={styles.gridCard}>
           <Text style={styles.gridLabel}>Cost</Text>
           <Text style={styles.gridValue}>
-            ₹{formatNumber(liveCost ?? session.cost)}
+            ₹{formatNumber(liveCost ?? displaySession?.cost)}
           </Text>
         </View>
         <View style={styles.gridCard}>
           <Text style={styles.gridLabel}>Battery</Text>
-          <Text style={styles.gridValue}>--</Text>
+          <Animated.Text style={[styles.gridValue, { opacity: batteryTextAnim }]}>
+            {liveBattery ?? "--"}
+          </Animated.Text>
+          {liveData?.battery_current_percentage != null ? (
+            <View style={styles.batteryBar}>
+              <Animated.View
+                style={[
+                  styles.batteryBarFill,
+                  {
+                    width: batteryBarAnim.interpolate({
+                      inputRange: [0, 100],
+                      outputRange: ["0%", "100%"],
+                    }),
+                    backgroundColor:
+                      (liveData.battery_current_percentage ?? 0) < 20
+                        ? V.error
+                        : V.primary,
+                  },
+                ]}
+              />
+            </View>
+          ) : null}
         </View>
       </View>
 
       <View style={styles.detailCard}>
         <Text style={styles.detailTitle}>Connector</Text>
-        <Text style={styles.detailValue}>Connector {session.connector_id}</Text>
+        <Text style={styles.detailValue}>
+          Connector {displaySession?.connector_id}
+        </Text>
       </View>
-      {liveStatus === "charging" ? (
+      {isSessionLive(liveStatus) && liveStatus !== "stopping" ? (
         <View style={styles.actionWrap}>
           <Pressable
             style={[styles.primaryBtn, isStopping && styles.primaryBtnDisabled]}
@@ -332,61 +458,148 @@ export default function SessionDetails() {
           ) : null}
         </View>
       ) : null}
-    </ScrollView>
+    </TabScreen>
+    <Modal
+      visible={Platform.OS === "web" && showStopConfirm}
+      transparent
+      animationType="fade"
+      onRequestClose={() => setShowStopConfirm(false)}
+    >
+      <Pressable
+        style={styles.confirmBackdrop}
+        onPress={() => setShowStopConfirm(false)}
+      >
+        <Pressable style={styles.confirmCard} onPress={() => null}>
+          <Text style={styles.confirmTitle}>Stop charging</Text>
+          <Text style={styles.confirmText}>
+            Are you sure you want to stop this session?
+          </Text>
+          <View style={styles.confirmActions}>
+            <Pressable
+              style={styles.confirmCancel}
+              onPress={() => setShowStopConfirm(false)}
+              disabled={isStopping}
+            >
+              <Text style={styles.confirmCancelText}>Cancel</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.confirmStop, isStopping && styles.primaryBtnDisabled]}
+              disabled={isStopping}
+              onPress={handleConfirmStop}
+            >
+              <Text style={styles.confirmStopText}>
+                {isStopping ? "Stopping..." : "Stop"}
+              </Text>
+            </Pressable>
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
+
+    {/* Session summary bottom sheet — appears when WebSocket sends "stopped" */}
+    <Modal
+      visible={showSessionSummary}
+      transparent
+      animationType="slide"
+      onRequestClose={() => setShowSessionSummary(false)}
+    >
+      <View style={styles.summaryBackdrop}>
+        <View style={styles.summarySheet}>
+          <View style={styles.summarySheetDragBar} />
+
+          <View style={styles.summarySheetHeader}>
+            <View style={styles.summarySheetIconWrap}>
+              <IconSymbol name="bolt.fill" size={28} color={V.primary} />
+            </View>
+            <Text style={styles.summarySheetTitle}>Charging Complete</Text>
+            <Text style={styles.summarySheetSubtitle}>
+              {stoppedEvent?.charger_name ?? session?.charger_id ?? ""}
+            </Text>
+          </View>
+
+          <View style={styles.summaryGrid}>
+            <View style={styles.summaryGridCard}>
+              <Text style={styles.summaryGridLabel}>Energy Used</Text>
+              <Text style={styles.summaryGridValue}>
+                {formatNumber(stoppedEvent?.energy_kwh ?? liveEnergy)} kWh
+              </Text>
+            </View>
+            <View style={styles.summaryGridCard}>
+              <Text style={styles.summaryGridLabel}>Amount Charged</Text>
+              <Text style={styles.summaryGridValue}>
+                ₹{formatNumber(stoppedEvent?.cost ?? liveCost)}
+              </Text>
+            </View>
+            <View style={styles.summaryGridCard}>
+              <Text style={styles.summaryGridLabel}>Duration</Text>
+              <Text style={styles.summaryGridValue}>{durationMin} min</Text>
+            </View>
+            <View style={styles.summaryGridCard}>
+              <Text style={styles.summaryGridLabel}>Wallet Balance</Text>
+              <Text style={styles.summaryGridValue}>
+                {session?.wallet_after != null
+                  ? `₹${formatNumber(session.wallet_after)}`
+                  : "--"}
+              </Text>
+            </View>
+          </View>
+
+          {stoppedEvent?.reason ? (
+            <View style={styles.summaryReasonRow}>
+              <Text style={styles.summaryReasonText}>
+                {getStopReasonLabel(stoppedEvent.reason)}
+              </Text>
+            </View>
+          ) : null}
+
+          <Pressable
+            style={styles.summaryDoneBtn}
+            onPress={() => setShowSessionSummary(false)}
+          >
+            <Text style={styles.summaryDoneText}>Done</Text>
+          </Pressable>
+        </View>
+      </View>
+    </Modal>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#F3F6FB",
-  },
-  content: {
-    paddingHorizontal: 16,
-    paddingTop: 40,
-    paddingBottom: 140,
-  },
-  header: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#0F172A",
-    paddingTop: 40,
+  stateMessage: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: V.bodySecondary,
   },
   topBar: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
     marginBottom: 16,
   },
   topTitle: {
+    flex: 1,
     fontSize: 18,
     fontWeight: "700",
-    color: "#0F172A",
+    color: V.headingDeep,
+    textAlign: "center",
   },
-  backButton: {
-    flexDirection: "row",
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: V.borderNavy,
+    backgroundColor: V.card,
     alignItems: "center",
-  },
-  backIcon: {
-    transform: [{ rotate: "180deg" }],
-  },
-  backText: {
-    marginLeft: 6,
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#0F172A",
+    justifyContent: "center",
   },
   summaryCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 20,
+    backgroundColor: V.card,
+    borderRadius: V.radiusCard,
     padding: 16,
     borderWidth: 1,
-    borderColor: "rgba(40, 92, 153, 0.12)",
-    shadowColor: "#0B2A5E",
-    shadowOpacity: 0.08,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 3,
+    borderColor: V.borderNavy,
+    ...V.shadowCardEmphasis,
   },
   summaryHeader: {
     flexDirection: "row",
@@ -396,23 +609,27 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: "#2EC6C9",
+    backgroundColor: V.tealMuted,
     alignItems: "center",
     justifyContent: "center",
+    borderWidth: 2,
+    borderColor: V.primary,
   },
   summaryText: {
+    flex: 1,
+    minWidth: 0,
     marginLeft: 12,
   },
   summaryTitle: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#13233D",
+    color: V.headingMuted,
   },
   summaryMeta: {
     marginTop: 4,
     fontSize: 12,
     fontWeight: "600",
-    color: "#6C7CA6",
+    color: V.bodySecondary,
   },
   summaryRow: {
     marginTop: 14,
@@ -423,18 +640,18 @@ const styles = StyleSheet.create({
   summaryLabel: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#6C7CA6",
+    color: V.bodySecondary,
   },
   summaryValue: {
     fontSize: 12,
     fontWeight: "700",
-    color: "#1A2850",
+    color: V.heading,
   },
   statusPill: {
-    backgroundColor: "rgba(33, 179, 167, 0.12)",
+    backgroundColor: V.tealMuted,
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 999,
+    borderRadius: V.radiusPill,
   },
   statusRow: {
     flexDirection: "row",
@@ -444,13 +661,13 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: "#0F6A6A",
+    backgroundColor: V.tealBadgeText,
     marginRight: 6,
   },
   statusText: {
     fontSize: 11,
     fontWeight: "700",
-    color: "#0F6A6A",
+    color: V.tealBadgeText,
   },
   grid: {
     marginTop: 16,
@@ -460,60 +677,76 @@ const styles = StyleSheet.create({
   },
   gridCard: {
     width: "48%",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
+    backgroundColor: V.card,
+    borderRadius: V.radiusPanel,
     padding: 14,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: "rgba(40, 92, 153, 0.12)",
+    borderColor: V.borderNavy,
+    ...V.shadowCard,
   },
   gridLabel: {
     fontSize: 11,
     fontWeight: "700",
-    color: "#8B97B2",
+    color: V.label,
     textTransform: "uppercase",
+    letterSpacing: 1,
   },
   gridValue: {
     marginTop: 8,
     fontSize: 14,
     fontWeight: "700",
-    color: "#1A2850",
+    color: V.heading,
+  },
+  batteryBar: {
+    marginTop: 8,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: V.borderNavy,
+    overflow: "hidden",
+  },
+  batteryBarFill: {
+    height: "100%",
+    borderRadius: 2,
+    backgroundColor: V.primary,
   },
   detailCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
+    backgroundColor: V.card,
+    borderRadius: V.radiusPanel,
     padding: 16,
     marginTop: 12,
     borderWidth: 1,
-    borderColor: "rgba(40, 92, 153, 0.12)",
+    borderColor: V.borderNavy,
+    ...V.shadowCard,
   },
   detailTitle: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "700",
-    color: "#8B97B2",
+    color: V.label,
     textTransform: "uppercase",
+    letterSpacing: 1,
   },
   detailValue: {
     marginTop: 8,
     fontSize: 14,
     fontWeight: "700",
-    color: "#1A2850",
+    color: V.heading,
   },
   actionWrap: {
     marginTop: 20,
     marginBottom: 24,
   },
   primaryBtn: {
-    backgroundColor: "#1A2850",
+    backgroundColor: V.error,
     paddingVertical: 14,
-    borderRadius: 12,
+    borderRadius: V.radiusPill,
     alignItems: "center",
   },
   primaryBtnDisabled: {
     opacity: 0.7,
   },
   primaryText: {
-    color: "#FFFFFF",
+    color: V.card,
     fontSize: 14,
     fontWeight: "700",
   },
@@ -521,6 +754,185 @@ const styles = StyleSheet.create({
     marginTop: 10,
     fontSize: 12,
     fontWeight: "600",
-    color: "#C81D2C",
+    color: V.error,
+  },
+  confirmBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(11, 18, 39, 0.45)",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 20,
+  },
+  confirmCard: {
+    width: "100%",
+    maxWidth: 420,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: V.borderNavy,
+    backgroundColor: V.card,
+    padding: 18,
+  },
+  confirmTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: V.headingDeep,
+  },
+  confirmText: {
+    marginTop: 10,
+    fontSize: 14,
+    fontWeight: "500",
+    color: V.bodySecondary,
+  },
+  confirmActions: {
+    marginTop: 18,
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: 10,
+  },
+  confirmCancel: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: V.borderNavy,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: "#F5F7FB",
+  },
+  confirmCancelText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: V.headingDeep,
+  },
+  confirmStop: {
+    borderRadius: 12,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    backgroundColor: V.error,
+  },
+  confirmStopText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: V.card,
+  },
+
+  // Auto-stop wallet limit banner
+  autoStopBanner: {
+    marginTop: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: V.errorSurface,
+    borderWidth: 1,
+    borderColor: V.errorBorder,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  autoStopBannerText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: "600",
+    color: V.error,
+  },
+
+  // Session summary bottom sheet
+  summaryBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(11, 18, 39, 0.55)",
+    justifyContent: "flex-end",
+  },
+  summarySheet: {
+    backgroundColor: V.card,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 48,
+    borderTopWidth: 1,
+    borderTopColor: V.borderNavy,
+  },
+  summarySheetDragBar: {
+    alignSelf: "center",
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: V.borderNavyMedium,
+    marginBottom: 20,
+  },
+  summarySheetHeader: {
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  summarySheetIconWrap: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: V.tealMuted,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: V.primary,
+    marginBottom: 12,
+  },
+  summarySheetTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: V.headingDeep,
+  },
+  summarySheetSubtitle: {
+    marginTop: 4,
+    fontSize: 13,
+    fontWeight: "600",
+    color: V.bodySecondary,
+  },
+  summaryGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    marginBottom: 4,
+  },
+  summaryGridCard: {
+    width: "48%",
+    backgroundColor: V.panelTint,
+    borderRadius: V.radiusPanel,
+    padding: 14,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: V.borderNavy,
+  },
+  summaryGridLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: V.label,
+    textTransform: "uppercase",
+    letterSpacing: 1,
+  },
+  summaryGridValue: {
+    marginTop: 8,
+    fontSize: 16,
+    fontWeight: "700",
+    color: V.heading,
+  },
+  summaryReasonRow: {
+    marginBottom: 16,
+    paddingHorizontal: 4,
+    alignItems: "center",
+  },
+  summaryReasonText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: V.bodySecondary,
+    textAlign: "center",
+  },
+  summaryDoneBtn: {
+    backgroundColor: V.primary,
+    paddingVertical: 14,
+    borderRadius: V.radiusPill,
+    alignItems: "center",
+    marginTop: 4,
+  },
+  summaryDoneText: {
+    color: V.card,
+    fontSize: 15,
+    fontWeight: "700",
   },
 });

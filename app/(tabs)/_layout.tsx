@@ -1,6 +1,12 @@
 import { Redirect, Tabs, useRouter } from "expo-router";
 import { Platform, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAppSelector } from "@/store/hooks";
+import {
+  TAB_BAR_FLOAT_GAP,
+  TAB_BAR_HEIGHT,
+} from "@/hooks/use-tab-screen-insets";
+import { V } from "@/theme/vajra";
 
 import { HapticTab } from "components/haptic-tab";
 import { IconName } from "components/ui/icon-names";
@@ -76,8 +82,10 @@ export default function TabLayout() {
     (state) => state.auth,
   );
   const router = useRouter();
-  const tabAccent = "#2EC6C9";
-  const tabInactive = "#8B97B2";
+  const insets = useSafeAreaInsets();
+  const tabBarBottom = Math.max(insets.bottom, TAB_BAR_FLOAT_GAP);
+  const tabAccent = V.primary;
+  const tabInactive = V.label;
 
   if (!sessionHydrated) {
     return null;
@@ -89,10 +97,12 @@ export default function TabLayout() {
 
   return (
     <Tabs
+      initialRouteName="qr"
       screenOptions={{
         headerShown: false,
         lazy: true,
         freezeOnBlur: true,
+        detachInactiveScreens: true,
         tabBarShowLabel: false,
         tabBarButton: HapticTab,
 
@@ -101,25 +111,20 @@ export default function TabLayout() {
 
         tabBarStyle: {
           position: "absolute",
-          bottom: 24,
+          bottom: tabBarBottom,
           left: 20,
           right: 20,
-          height: 64,
+          height: TAB_BAR_HEIGHT,
           borderRadius: 32,
-          backgroundColor: "#FFFFFF",
+          backgroundColor: V.card,
           borderTopWidth: 0,
           borderWidth: 1,
-          borderColor: "rgba(15, 23, 42, 0.08)",
+          borderColor: V.tabBarBorder,
 
           ...(Platform.OS === "ios"
-            ? {
-                shadowColor: "#0B2A5E",
-                shadowOpacity: 0.12,
-                shadowRadius: 18,
-                shadowOffset: { width: 0, height: 8 },
-              }
+            ? V.shadowTabBar
             : {
-                elevation: 6,
+                elevation: 8,
               }),
         },
 
@@ -129,11 +134,15 @@ export default function TabLayout() {
       }}
     >
       <Tabs.Screen
+        name="home"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
         name="map"
         options={{
-          tabBarIcon: ({ color, focused }) => (
-            <TabIcon focused={focused} color={color} name="map.fill" />
-          ),
+          href: null,
         }}
       />
       <Tabs.Screen
@@ -150,6 +159,7 @@ export default function TabLayout() {
         name="qr"
         options={{
           tabBarIcon: () => <QRFloatingButton color={tabAccent} />,
+          unmountOnBlur: true,
         }}
       />
       <Tabs.Screen

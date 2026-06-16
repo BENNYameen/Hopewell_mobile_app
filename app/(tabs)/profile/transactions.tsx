@@ -1,7 +1,9 @@
-import { useRouter } from "expo-router";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 
+import { ProfileSubScreen } from "components/vajra/ProfileSubScreen";
+import { V } from "@/theme/vajra";
 import { useGetWalletTransactionsQuery } from "@/wallet/wallet.api";
+import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { IconSymbol } from "components/ui/icon-symbol";
 
 const formatDateTime = (value: string) => {
@@ -22,17 +24,12 @@ const formatDateTime = (value: string) => {
 };
 
 export default function Transactions() {
-  const router = useRouter();
-  const { data, isLoading, isError, refetch } =
+  const { data, isLoading, isError, refetch, isFetching } =
     useGetWalletTransactionsQuery(50);
+  const { refreshControl } = usePullToRefresh(refetch, isFetching);
 
   return (
-    <View style={styles.container}>
-      <Pressable style={styles.backRow} onPress={() => router.back()}>
-        <IconSymbol name="arrow.left" size={18} color="#0F172A" />
-        <Text style={styles.backText}>Back</Text>
-      </Pressable>
-      <Text style={styles.title}>Transactions</Text>
+    <ProfileSubScreen title="Transactions" refreshControl={refreshControl}>
       {isError ? (
         <View style={styles.errorBox}>
           <Text style={styles.errorText}>
@@ -43,113 +40,118 @@ export default function Transactions() {
           </Pressable>
         </View>
       ) : null}
-      <ScrollView contentContainerStyle={styles.list}>
+      <View style={styles.list}>
         {isLoading ? (
           <Text style={styles.body}>Loading...</Text>
         ) : data && data.length > 0 ? (
           data.map((item) => (
             <View key={item.id} style={styles.txCard}>
-              <View>
+              <View style={styles.txIconWrap}>
+                <IconSymbol name="creditcard.fill" size={18} color={V.primary} />
+              </View>
+              <View style={styles.txInfo}>
                 <Text style={styles.txTitle}>{item.description}</Text>
                 <Text style={styles.txMeta}>
                   {item.transaction_type} · {formatDateTime(item.created_at)}
                 </Text>
               </View>
-              <Text style={styles.txAmount}>
-                {item.currency} {item.amount}
+              <Text
+                style={[
+                  styles.txAmount,
+                  item.transaction_type === "DEBIT"
+                    ? styles.txDebit
+                    : styles.txCredit,
+                ]}
+              >
+                {item.transaction_type === "DEBIT" ? "−" : "+"}
+                ₹{item.amount}
               </Text>
             </View>
           ))
         ) : (
           <Text style={styles.body}>No transactions yet.</Text>
         )}
-      </ScrollView>
-    </View>
+      </View>
+    </ProfileSubScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#F3F6FB",
-    paddingHorizontal: 16,
-    paddingTop: 40,
-  },
-  backRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  backText: {
-    marginLeft: 6,
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#1A2850",
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: "#0F172A",
-    marginBottom: 12,
+  list: {
+    gap: 12,
   },
   body: {
     fontSize: 14,
-    color: "#6C7CA6",
     fontWeight: "600",
+    color: V.bodySecondary,
   },
-  list: {
-    paddingTop: 6,
-    paddingBottom: 120,
-  },
-  txCard: {
-    backgroundColor: "#FFFFFF",
+  errorBox: {
+    backgroundColor: V.errorSurface,
     borderRadius: 14,
     padding: 14,
-    marginBottom: 12,
     borderWidth: 1,
-    borderColor: "rgba(40, 92, 153, 0.12)",
+    borderColor: V.errorBorder,
+    marginBottom: 16,
+  },
+  errorText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: V.error,
+  },
+  retryButton: {
+    alignSelf: "flex-start",
+    marginTop: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: V.error,
+    borderRadius: V.radiusPill,
+  },
+  retryText: {
+    color: V.card,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  txCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: V.card,
+    borderRadius: V.radiusCard,
+    borderWidth: 1,
+    borderColor: V.borderNavy,
+    padding: 14,
+    gap: 12,
+    ...V.shadowCard,
+  },
+  txIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: V.tealMuted,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  txInfo: {
+    flex: 1,
+    gap: 4,
   },
   txTitle: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#13233D",
+    color: V.headingDeep,
   },
   txMeta: {
-    marginTop: 4,
     fontSize: 12,
     fontWeight: "600",
-    color: "#6C7CA6",
+    color: V.label,
   },
   txAmount: {
-    marginTop: 10,
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#0F6A6A",
+    fontSize: 14,
+    fontWeight: "800",
   },
-  errorBox: {
-    backgroundColor: "#FFECEE",
-    borderRadius: 12,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: "#F5B6BE",
-    marginBottom: 12,
+  txDebit: {
+    color: V.error,
   },
-  errorText: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#C81D2C",
-  },
-  retryButton: {
-    alignSelf: "flex-start",
-    marginTop: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    backgroundColor: "#E11D2E",
-    borderRadius: 999,
-  },
-  retryText: {
-    color: "#FFFFFF",
-    fontSize: 12,
-    fontWeight: "700",
+  txCredit: {
+    color: V.primary,
   },
 });

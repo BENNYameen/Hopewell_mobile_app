@@ -1,7 +1,8 @@
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text } from "react-native";
 import { useRouter } from "expo-router";
 
-import { IconSymbol } from "components/ui/icon-symbol";
+import { ProfileSubScreen } from "components/vajra/ProfileSubScreen";
+import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { clearStoredSession } from "@/auth/session";
 import { useLogoutMutation } from "@/auth/auth.api";
 import { logout as logoutAction } from "@/features/auth/slice";
@@ -11,6 +12,7 @@ export default function Logout() {
   const router = useRouter();
   const dispatch = useAppDispatch();
   const [logout, { isLoading, isError }] = useLogoutMutation();
+  const { refreshControl } = usePullToRefresh(async () => {}, false);
 
   const handleLogout = async () => {
     try {
@@ -25,12 +27,7 @@ export default function Logout() {
   };
 
   return (
-    <View style={styles.container}>
-      <Pressable style={styles.backRow} onPress={() => router.back()}>
-        <IconSymbol name="arrow.left" size={18} color="#0F172A" />
-        <Text style={styles.backText}>Back</Text>
-      </Pressable>
-      <Text style={styles.title}>Log out</Text>
+    <ProfileSubScreen title="Log out" refreshControl={refreshControl}>
       <Text style={styles.body}>
         Log out confirmation will be handled here.
       </Text>
@@ -44,34 +41,11 @@ export default function Logout() {
           {isLoading ? "Signing out..." : "Confirm log out"}
         </Text>
       </Pressable>
-    </View>
+    </ProfileSubScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#F3F6FB",
-    paddingHorizontal: 16,
-    paddingTop: 40,
-  },
-  backRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  backText: {
-    marginLeft: 6,
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#1A2850",
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: "#0F172A",
-    marginBottom: 12,
-  },
   body: {
     fontSize: 14,
     color: "#6C7CA6",

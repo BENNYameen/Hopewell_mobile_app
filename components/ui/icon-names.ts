@@ -12,10 +12,13 @@ export const ICONS = {
   "house.fill": true,
   "paperplane.fill": true,
   "chevron.right": true,
+  "chevron.left": true,
+  "chevron.down": true,
   "map.fill": true,
   "location.fill": true,
   "arrow.left": true,
   "arrow.right": true,
+  menu: true,
   "xmark": true,
   "checkmark": true,
   "plus": true,
@@ -38,6 +41,7 @@ export const ICONS = {
   "description": true,
   "policy": true,
   "help": true,
+  "info.circle.fill": true,
 } as const;
 
 export type IconName = keyof typeof ICONS;

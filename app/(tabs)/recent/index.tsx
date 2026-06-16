@@ -2,8 +2,8 @@ import { useRouter } from "expo-router";
 import { useCallback, useMemo } from "react";
 import {
   FlatList,
+  Platform,
   Pressable,
-  RefreshControl,
   StyleSheet,
   Text,
   View,
@@ -11,7 +11,14 @@ import {
 import { useFocusEffect } from "@react-navigation/native";
 
 import { useGetChargingSessionsQuery } from "@/charging/charging.api";
+import { isSessionLive, sessionStatusLabel } from "@/charging/sessionStatus";
+import { useLiveChargingSession } from "@/charging/useLiveChargingSession";
+import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
+import { useTabScreenInsets } from "@/hooks/use-tab-screen-insets";
+import { useWebContentPadding } from "@/hooks/use-web-content-padding";
+import { V } from "@/theme/vajra";
 import { IconSymbol } from "components/ui/icon-symbol";
+import { PulsingLiveDot } from "components/vajra/PulsingLiveDot";
 
 const formatDateTime = (value: string | null) => {
   if (!value) return "--";
@@ -49,14 +56,23 @@ type RecentProps = {
 
 export function RecentContent({
   showHeader = true,
-  topPadding = 40,
+  topPadding,
   withContainer = true,
 }: RecentProps) {
   const router = useRouter();
+  const tabInsets = useTabScreenInsets();
+  const webPadding = useWebContentPadding();
+  const resolvedTop = topPadding ?? tabInsets.top;
+  const listBottom = tabInsets.bottom;
+  const {
+    live,
+    refetch: refetchActive,
+    isFetching: activeFetching,
+    isError: activeError,
+  } = useLiveChargingSession();
   const {
     data: activeSessions,
-    isError: activeError,
-    error: activeErrorData,
+    isError: sessionsError,
     refetch,
     isFetching,
   } = useGetChargingSessionsQuery(
@@ -72,39 +88,31 @@ export function RecentContent({
   useFocusEffect(
     useCallback(() => {
       refetch();
-    }, [refetch]),
+      refetchActive();
+    }, [refetch, refetchActive]),
+  );
+  const { refreshControl } = usePullToRefresh(
+    [refetch, refetchActive],
+    isFetching || activeFetching,
   );
   const sessions = useMemo(
     () => (Array.isArray(activeSessions) ? activeSessions : []),
     [activeSessions],
   );
-  const liveSession = useMemo(
-    () => sessions.find((session) => session.status === "charging"),
-    [sessions],
-  );
-  const liveFields = useMemo(() => {
-    if (!liveSession) {
-      return null;
-    }
-    return {
-      startedAt: liveSession.start_time,
-      stationName: liveSession.charger_id,
-      location: `Connector ${liveSession.connector_id}`,
-      energyKwh: liveSession.energy_kwh,
-      durationMin: Math.max(
-        0,
-        Math.round(
-          (Date.now() - new Date(liveSession.start_time).getTime()) / 60000,
-        ),
-      ),
-      batteryStartPct: undefined,
-      batteryEndPct: undefined,
-    };
-  }, [liveSession]);
-  const listSessions = useMemo(
-    () => sessions.filter((session) => session.id !== liveSession?.id),
-    [sessions, liveSession?.id],
-  );
+  const liveSession = live?.session ?? null;
+  const listSessions = useMemo(() => {
+    const activeId = liveSession?.id;
+    return sessions.filter((session) => {
+      if (activeId && session.id === activeId) {
+        return false;
+      }
+      if (isSessionLive(session.status)) {
+        return false;
+      }
+      return true;
+    });
+  }, [liveSession?.id, sessions]);
+  const hasLoadError = activeError || sessionsError;
 
   const openDetails = (sessionId: string) => {
     router.push({ pathname: "/recent/[id]", params: { id: sessionId } });
@@ -119,26 +127,46 @@ export function RecentContent({
           60000,
       ),
     );
-    const title =
-      item.status === "charging" ? "Live Charging" : "Charging Session";
+    const title = isSessionLive(item.status)
+      ? "Live Charging"
+      : "Charging Session";
+    const isLive = isSessionLive(item.status);
     return (
     <Pressable onPress={() => openDetails(item.id)} style={styles.card}>
-      <View style={styles.cardRow}>
-        <View style={styles.iconWrap}>
-          <IconSymbol name="charger.fill" size={24} color="#FFFFFF" />
-        </View>
-        <View style={styles.cardBody}>
-          <Text style={styles.cardTitle}>{title}</Text>
-          <Text style={styles.cardMeta}>
-            {item.charger_id} • Connector {item.connector_id}
-          </Text>
-          <View style={styles.cardFoot}>
-            <Text style={styles.cardValue}>{item.energy_kwh} kWh</Text>
-            <Text style={styles.cardDot}>•</Text>
-            <Text style={styles.cardValue}>₹{item.cost.toFixed(2)}</Text>
-            <Text style={styles.cardDot}>•</Text>
-            <Text style={styles.cardValue}>{durationMin} min</Text>
+      <View style={styles.cardTop}>
+        <View style={styles.cardRow}>
+          <View style={styles.iconWrap}>
+            <IconSymbol name="bolt.fill" size={22} color={V.primary} />
           </View>
+          <View style={styles.cardBody}>
+            <Text style={styles.cardTitle}>{title}</Text>
+            <Text style={styles.cardMeta}>
+              {item.charger_id} • Connector {item.connector_id}
+            </Text>
+            <View style={styles.cardFoot}>
+              <Text style={styles.cardValue}>
+                {(item.energy_kwh ?? 0).toFixed(2)} kWh
+              </Text>
+              <Text style={styles.cardDot}>•</Text>
+              <Text style={styles.cardValue}>
+                ₹{(item.cost ?? 0).toFixed(2)}
+              </Text>
+              <Text style={styles.cardDot}>•</Text>
+              <Text style={styles.cardValue}>{durationMin} min</Text>
+            </View>
+          </View>
+        </View>
+        <View
+          style={[
+            styles.sessionStatusPill,
+            isLive ? styles.sessionStatusLive : styles.sessionStatusDone,
+          ]}
+        >
+          <Text
+            style={isLive ? styles.sessionStatusLiveText : styles.sessionStatusDoneText}
+          >
+            {isLive ? "Live" : "Done"}
+          </Text>
         </View>
       </View>
       <Text style={styles.cardTime}>
@@ -149,99 +177,130 @@ export function RecentContent({
     );
   };
 
-  const content = (
+  const listHeader = (
     <>
       {showHeader ? (
-        <>
-          <Text style={styles.header}>Charging Sessions</Text>
-          <Text style={styles.subheader}>Live status and past activity</Text>
-        </>
+        <View style={styles.titleRow}>
+          <View style={styles.titleBlock}>
+            <Text style={styles.header}>Charging Sessions</Text>
+            <Text style={styles.subheader}>
+              Live status and past activity
+            </Text>
+          </View>
+        </View>
       ) : null}
 
-      <FlatList
-        data={listSessions}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.list}
-        refreshControl={
-          <RefreshControl refreshing={isFetching} onRefresh={refetch} />
-        }
-        ListHeaderComponent={
-          liveFields ? (
-            <View style={styles.liveWrap}>
-              <Text style={styles.sectionLabel}>Live now</Text>
-              <Pressable
-                onPress={() => openDetails(liveSession?.id ?? "")}
-                style={styles.liveCard}
-              >
-                <View style={styles.liveHeader}>
-                  <View style={styles.liveBadge}>
-                    <View style={styles.liveDot} />
-                    <Text style={styles.liveBadgeText}>Charging</Text>
+      {hasLoadError ? (
+        <Text style={styles.errorBanner}>
+          Unable to load sessions. Try refreshing.
+        </Text>
+      ) : null}
+
+      {live ? (
+              <View style={styles.liveWrap}>
+                <Text style={styles.sectionLabel}>Live now</Text>
+                <Pressable
+                  onPress={() => openDetails(live.session.id)}
+                  style={styles.liveCard}
+                >
+                  <View style={styles.liveHeader}>
+                    <View style={styles.liveBadge}>
+                      <View style={styles.liveBadgeInner}>
+                        <PulsingLiveDot />
+                        <Text style={styles.liveBadgeText}>
+                          {sessionStatusLabel(live.status)}
+                        </Text>
+                      </View>
+                    </View>
+                    <Text style={styles.liveTime}>
+                      {formatDateTime(live.session.start_time)}
+                    </Text>
                   </View>
-                  <Text style={styles.liveTime}>
-                    {formatDateTime(liveFields.startedAt)}
+                  <Text style={styles.liveTitle}>{live.chargerLabel}</Text>
+                  <Text style={styles.liveMeta}>
+                    Connector {live.session.connector_id}
                   </Text>
-                </View>
-                <Text style={styles.liveTitle}>{liveFields.stationName}</Text>
-                <Text style={styles.liveMeta}>{liveFields.location}</Text>
-                <View style={styles.liveStats}>
-                  <View>
-                    <Text style={styles.statLabel}>Energy</Text>
-                    <Text style={styles.statValue}>
-                      {liveFields.energyKwh} kWh
-                    </Text>
+                  <View style={styles.liveStats}>
+                    <View>
+                      <Text style={styles.statLabel}>Energy</Text>
+                      <Text style={styles.statValue}>
+                        {live.energyKwh.toFixed(2)} kWh
+                      </Text>
+                    </View>
+                    <View>
+                      <Text style={styles.statLabel}>Duration</Text>
+                      <Text style={styles.statValue}>
+                        {live.durationMin} min
+                      </Text>
+                    </View>
+                    <View>
+                      <Text style={styles.statLabel}>Cost</Text>
+                      <Text style={styles.statValue}>
+                        ₹{live.cost.toFixed(2)}
+                      </Text>
+                    </View>
                   </View>
-                  <View>
-                    <Text style={styles.statLabel}>Duration</Text>
-                    <Text style={styles.statValue}>
-                      {liveFields.durationMin} min
-                    </Text>
-                  </View>
-                  <View>
-                    <Text style={styles.statLabel}>Battery</Text>
-                    <Text style={styles.statValue}>
-                      {liveFields.batteryStartPct ?? "--"}% →{" "}
-                      {liveFields.batteryEndPct ?? "--"}%
-                    </Text>
-                  </View>
-                </View>
+                </Pressable>
+              </View>
+            ) : null}
+            {live && listSessions.length > 0 ? (
+              <Text style={[styles.sectionLabel, styles.pastSessionsLabel]}>
+                Past sessions
+              </Text>
+            ) : null}
+    </>
+  );
+
+  const content = (
+    <FlatList
+      style={Platform.OS === "web" ? styles.webList : undefined}
+      data={listSessions}
+      keyExtractor={(item) => item.id}
+      contentContainerStyle={[
+        styles.list,
+        Platform.OS === "web"
+          ? {
+              paddingTop: webPadding.scrollPaddingTop,
+              paddingHorizontal: webPadding.paddingHorizontal,
+              width: webPadding.width,
+              alignSelf: webPadding.alignSelf,
+            }
+          : null,
+        { paddingBottom: listBottom },
+      ]}
+      refreshControl={refreshControl}
+      ListHeaderComponent={listHeader}
+      ListFooterComponent={
+          sessions.length === 0 && !hasLoadError ? (
+            <View style={styles.emptyCard}>
+              <Text style={styles.emptyText}>No sessions yet.</Text>
+              <Pressable
+                onPress={() => router.push("/qr")}
+                style={styles.emptyCta}
+              >
+                <Text style={styles.emptyCtaText}>Start your first session</Text>
               </Pressable>
             </View>
           ) : null
         }
-        ListFooterComponent={
-          <View style={styles.sectionFooter}>
-            {activeError ? (
-              <Text style={styles.emptyText}>
-                {"status" in (activeErrorData as { status?: string | number })
-                  ? (
-                      activeErrorData as {
-                        status?: string | number;
-                        originalStatus?: number;
-                      }
-                    ).status === 404 ||
-                    (activeErrorData as { originalStatus?: number })
-                      .originalStatus === 404
-                    ? "No active sessions."
-                    : "Unable to load sessions."
-                  : "Unable to load sessions."}
-              </Text>
-            ) : (
-              <Text style={styles.emptyText}>No sessions yet.</Text>
-            )}
-          </View>
-        }
-        renderItem={({ item }) => renderSession(item)}
-      />
-    </>
+      renderItem={({ item }) => renderSession(item)}
+    />
   );
 
   if (!withContainer) {
     return content;
   }
 
+  if (Platform.OS === "web") {
+    return (
+      <View style={styles.webPage}>
+        {content}
+      </View>
+    );
+  }
+
   return (
-    <View style={[styles.container, { paddingTop: topPadding }]}>
+    <View style={[styles.container, { paddingTop: resolvedTop }]}>
       {content}
     </View>
   );
@@ -252,57 +311,119 @@ export default function Recent() {
 }
 
 const styles = StyleSheet.create({
+  webPage: {
+    flex: 1,
+    minHeight: 0,
+    backgroundColor: V.pageBg,
+  },
+  webList: {
+    flex: 1,
+  },
   container: {
     flex: 1,
-    backgroundColor: "#F3F6FB",
-    paddingHorizontal: 16,
-    paddingTop: 40,
+    backgroundColor: V.pageBg,
+    paddingHorizontal: V.appPadH,
   },
   header: {
     fontSize: 24,
     fontWeight: "700",
-    color: "#0F172A",
+    color: V.headingDeep,
   },
   subheader: {
     fontSize: 14,
-    color: "#60739A",
+    fontWeight: "600",
+    color: V.bodySecondary,
     marginTop: 6,
-    marginBottom: 16,
+    marginBottom: 0,
   },
-  list: {
-    paddingBottom: 32,
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    marginBottom: 24,
+    gap: 12,
   },
-  sectionLabel: {
-    fontSize: 13,
+  titleBlock: {
+    flex: 1,
+  },
+  refreshBtn: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: V.borderNavy,
+    backgroundColor: V.card,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  refreshBtnDisabled: {
+    opacity: 0.5,
+  },
+  refreshBtnText: {
+    fontSize: 12,
     fontWeight: "700",
-    color: "#6C7CA6",
-    textTransform: "uppercase",
-    letterSpacing: 1,
-    marginBottom: 10,
+    color: V.heading,
   },
-  sectionFooter: {
-    marginTop: 6,
+  pastSessionsLabel: {
+    marginTop: 4,
+  },
+  errorBanner: {
+    marginBottom: 16,
+    padding: 16,
+    borderRadius: V.radiusCard,
+    fontSize: 14,
+    fontWeight: "600",
+    color: V.error,
+    backgroundColor: "#FEF2F2",
+  },
+  emptyCard: {
+    alignItems: "center",
+    marginTop: 8,
+    marginBottom: 24,
+    paddingVertical: 40,
+    paddingHorizontal: 24,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: V.borderNavy,
+    backgroundColor: V.card,
+    ...V.shadowCard,
+  },
+  emptyCta: {
+    marginTop: 16,
+    borderRadius: V.radiusPill,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    backgroundColor: V.primary,
+  },
+  emptyCtaText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: V.card,
+  },
+  list: {},
+  sectionLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: V.label,
+    textTransform: "uppercase",
+    letterSpacing: 2,
     marginBottom: 10,
   },
   emptyText: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: "600",
-    color: "#8B97B2",
+    color: V.label,
+    textAlign: "center",
+    marginBottom: 4,
   },
   liveWrap: {
     marginBottom: 12,
   },
   liveCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 20,
+    backgroundColor: V.card,
+    borderRadius: V.radiusCard,
     padding: 16,
     borderWidth: 1,
-    borderColor: "rgba(40, 92, 153, 0.12)",
-    shadowColor: "#0B2A5E",
-    shadowOpacity: 0.08,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 3,
+    borderColor: V.borderNavy,
+    ...V.shadowCardEmphasis,
   },
   liveHeader: {
     flexDirection: "row",
@@ -310,19 +431,16 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   liveBadge: {
+    borderRadius: 999,
+    paddingHorizontal: 2,
+    paddingVertical: 2,
+    backgroundColor: "rgba(33, 179, 167, 0.12)",
+  },
+  liveBadgeInner: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(33, 179, 167, 0.12)",
     paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: 999,
-  },
-  liveDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: "#21B3A7",
-    marginRight: 6,
   },
   liveBadgeText: {
     color: "#0F6A6A",
@@ -331,7 +449,7 @@ const styles = StyleSheet.create({
   },
   liveTime: {
     fontSize: 12,
-    color: "#6C7CA6",
+    color: V.bodySecondary,
     fontWeight: "600",
   },
   liveTitle: {
@@ -364,27 +482,51 @@ const styles = StyleSheet.create({
     color: "#1A2850",
   },
   card: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 18,
+    backgroundColor: V.card,
+    borderRadius: V.radiusPanel,
     padding: 16,
     marginBottom: 14,
     borderWidth: 1,
-    borderColor: "rgba(40, 92, 153, 0.12)",
-    shadowColor: "#0B2A5E",
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 2,
+    borderColor: V.borderNavy,
+    ...V.shadowCard,
+  },
+  cardTop: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
   },
   cardRow: {
     flexDirection: "row",
     alignItems: "center",
+    flex: 1,
+    paddingRight: 8,
+  },
+  sessionStatusPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: V.radiusPill,
+  },
+  sessionStatusLive: {
+    backgroundColor: V.tealMuted,
+  },
+  sessionStatusLiveText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: V.tealBadgeText,
+  },
+  sessionStatusDone: {
+    backgroundColor: V.sessionDoneBg,
+  },
+  sessionStatusDoneText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: V.sessionDoneLabel,
   },
   iconWrap: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: "#2EC6C9",
+    backgroundColor: V.tealMuted,
     alignItems: "center",
     justifyContent: "center",
   },

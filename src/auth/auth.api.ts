@@ -1,6 +1,6 @@
 import { api } from "@/api/api";
+import { getItemAsync } from "@/auth/secureStorage";
 import { REFRESH_TOKEN_KEY } from "./session";
-import * as SecureStore from "expo-secure-store";
 
 type LogoutResponse = {
   message: string;
@@ -11,7 +11,7 @@ export const authApi = api.injectEndpoints({
     logout: builder.mutation<LogoutResponse, void>({
       queryFn: async (_arg, _api, _extraOptions, baseQuery) => {
         const refreshToken =
-          (await SecureStore.getItemAsync(REFRESH_TOKEN_KEY)) ?? "";
+          (await getItemAsync(REFRESH_TOKEN_KEY)) ?? "";
 
         const result = await baseQuery({
           url: "/auth/logout",

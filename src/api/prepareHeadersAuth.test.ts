@@ -1,12 +1,12 @@
-jest.mock("expo-secure-store", () => ({
+jest.mock("@/auth/secureStorage", () => ({
   getItemAsync: jest.fn(),
 }));
 
-import * as SecureStore from "expo-secure-store";
+import { getItemAsync } from "@/auth/secureStorage";
 
 import { prepareHeadersWithAuth } from "./prepareHeadersAuth";
 
-const mockedGetItemAsync = jest.mocked(SecureStore.getItemAsync);
+const mockedGetItemAsync = jest.mocked(getItemAsync);
 
 describe("prepareHeadersWithAuth", () => {
   beforeEach(() => {

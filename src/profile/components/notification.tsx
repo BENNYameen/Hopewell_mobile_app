@@ -1,7 +1,8 @@
-import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import { FlatList, StyleSheet, Text, View } from "react-native";
 
 import { IconName } from "components/ui/icon-names";
 import { IconSymbol } from "components/ui/icon-symbol";
+import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { useGetNotificationsQuery } from "@/profile/profile.api";
 
 type NotificationProps = {
@@ -9,7 +10,8 @@ type NotificationProps = {
 };
 
 export default function Notification({ embedded = false }: NotificationProps) {
-  const { data: notifications = [], refetch } = useGetNotificationsQuery();
+  const { data: notifications = [], refetch, isFetching } = useGetNotificationsQuery();
+  const { refreshControl } = usePullToRefresh(refetch, isFetching);
 
   return (
     <View style={[styles.container, embedded && styles.containerEmbedded]}>
@@ -24,25 +26,14 @@ export default function Notification({ embedded = false }: NotificationProps) {
         <View>
           <Text style={styles.subheader}>Charging updates and payments</Text>
         </View>
-        <Pressable
-          onPress={() => refetch()}
-          disabled={notifications.length === 0}
-        >
-          <Text
-            style={[
-              styles.clearAll,
-              notifications.length === 0 && styles.clearAllDisabled,
-            ]}
-          >
-            Refresh
-          </Text>
-        </Pressable>
       </View>
 
       <FlatList
         data={notifications}
         keyExtractor={(item) => item.id}
+        style={embedded ? styles.listFlex : undefined}
         contentContainerStyle={styles.list}
+        refreshControl={refreshControl}
         ListEmptyComponent={
           <Text style={styles.empty}>No notifications yet</Text>
         }
@@ -81,6 +72,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   containerEmbedded: {
+    flex: 1,
     backgroundColor: "transparent",
     paddingHorizontal: 0,
   },
@@ -105,6 +97,9 @@ const styles = StyleSheet.create({
   },
   list: {
     paddingBottom: 32,
+  },
+  listFlex: {
+    flex: 1,
   },
   empty: {
     textAlign: "center",
